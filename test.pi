@@ -1,0 +1,2 @@
+x = false and true;
+print(x);

@@ -1,0 +1,14 @@
+i = 1;
+j = 1;
+k = 0;
+while (false) {
+    if(j < 20) {
+        j = i;
+        k = k + 1;
+    } else {
+        j = k;
+        k = k + 2;
+    }
+}
+
+print(j);
