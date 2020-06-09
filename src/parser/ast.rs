@@ -2,7 +2,7 @@ use crate::bytecode::distance::Distance;
 use crate::parser::binop::BinOp;
 use crate::parser::relop::RelOp;
 
-type InternInd = usize;
+type Interned = usize;
 
 /**
  *  [AST Expression]
@@ -14,8 +14,8 @@ type InternInd = usize;
 pub enum Expr {
     Number(Distance),
     Boolean(bool),
-    Variable(InternInd),
-    Assign(InternInd, Box<Expr>),
+    Variable(Interned),
+    Assign(Interned, Box<Expr>),
     Binary(Box<Expr>, BinOp, Box<Expr>),
     Logical(Box<Expr>, RelOp, Box<Expr>),
     Grouping(Box<Expr>),
@@ -33,4 +33,6 @@ pub enum Stmt {
     While(Box<Expr>, Box<Stmt>),
     Expression(Box<Expr>),
     Print(Vec<Expr>),
+    Return(Option<Box<Expr>>),
+    Function(Interned, Vec<Interned>, Vec<Stmt>),
 }

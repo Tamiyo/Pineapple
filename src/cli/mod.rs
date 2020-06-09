@@ -79,19 +79,24 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     let mut translator = TacTranslator::new();
     let statements = translator.translate(ast);
 
-    let mut cfg = ControlFlowGraph::new(statements);
+    let mut cfgs: Vec<ControlFlowGraph> = vec![];
+    for func in statements {
+        let mut cfg = ControlFlowGraph::new(func);
 
-    algorithm::ssa::convert_cfg_to_ssa(&mut cfg);
+        algorithm::ssa::convert_cfg_to_ssa(&mut cfg);
 
-    if args.optimize {
-        optimization::dead_code::dead_code_elimination(&mut cfg);
-        optimization::constant_optmization::constant_optimization(&mut cfg);
-    }
-
-    if args.debug {
-        for (i, s) in cfg.gather_statements().into_iter().enumerate() {
-            println!("{:<3}:{:>2}{:?}", i, "", s);
+        if args.optimize {
+            optimization::dead_code::dead_code_elimination(&mut cfg);
+            optimization::constant_optmization::constant_optimization(&mut cfg);
         }
+
+        if args.debug {
+            for (i, s) in cfg.gather_statements().into_iter().enumerate() {
+                println!("{:<3}:{:>2}{:?}", i, "", s);
+            }
+        }
+
+        cfgs.push(cfg);
     }
 
     Ok(())

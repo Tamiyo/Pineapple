@@ -1,12 +1,36 @@
 use crate::bytecode::constant::Constant;
 use crate::parser::binop::BinOp;
 use crate::parser::relop::RelOp;
+use std::ops::Deref;
 
 use crate::bytecode::string_intern::get_string;
 
 use std::fmt;
 
-pub type Label = usize;
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Label {
+    Named(usize),
+    Label(usize),
+}
+
+impl Deref for Label {
+    type Target = usize;
+
+    fn deref(&self) -> &usize {
+        match self {
+            Label::Named(n) | Label::Label(n) => &n,
+        }
+    }
+}
+
+impl fmt::Debug for Label {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            Label::Named(n) => write!(f, "begin {}", get_string(*n)),
+            Label::Label(n) => write!(f, "_L{}:", n),
+        }
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SSA {
@@ -113,6 +137,7 @@ pub enum Expr {
     Operand(Operand),
     Phi(Vec<Operand>), // Special for SSA
     Call(usize),
+    StackPop,
 }
 
 impl Expr {
@@ -130,7 +155,7 @@ impl Expr {
                 }
                 used
             }
-            Expr::Call(_) => vec![],
+            _ => vec![],
         }
     }
 
@@ -148,7 +173,7 @@ impl Expr {
                 }
                 !used.is_empty()
             }
-            Expr::Call(_) => false,
+            _ => false,
         }
     }
 
@@ -248,6 +273,7 @@ impl fmt::Debug for Expr {
                 write!(f, ")")
             }
             Expr::Call(fname) => write!(f, "Call {}", get_string(*fname)),
+            Expr::StackPop => write!(f, "_pop"),
         }
     }
 }
@@ -328,6 +354,13 @@ impl Tac {
         }
     }
 
+    fn is_function_pop(&self) -> bool {
+        match &self.rval {
+            Expr::StackPop => true,
+            _ => false,
+        }
+    }
+
     fn replace_with(&mut self, v: Operand, c: Operand) {
         self.rval.replace_with(v, c)
     }
@@ -370,7 +403,7 @@ pub enum Stmt {
     CJump(CJump),
     Call(usize),
     StackPush(Operand), // pushes an operand onto the stack
-    StackPop(usize),    // pops off `n` elements from the stack
+    StackPop,           // pops a elements from the stack
 }
 
 impl Stmt {
@@ -469,6 +502,13 @@ impl Stmt {
         }
     }
 
+    pub fn is_function_pop(&self) -> bool {
+        match self {
+            Stmt::Tac(tac) => tac.is_function_pop(),
+            _ => false,
+        }
+    }
+
     pub fn is_constant_jump(&self) -> Option<Constant> {
         match self {
             Stmt::CJump(cj) => cj.is_constant_jump(),
@@ -502,12 +542,12 @@ impl fmt::Debug for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
             Stmt::Tac(t) => write!(f, "\t{:?}", t),
-            Stmt::Label(l) => write!(f, "_L{}:", l),
-            Stmt::Jump(j) => write!(f, "\tgoto _L{}", j.goto),
-            Stmt::CJump(cj) => write!(f, "\tif {:?} goto _L{}", cj.cond, cj.goto),
+            Stmt::Label(l) => write!(f, "{:?}", l),
+            Stmt::Jump(j) => write!(f, "\tgoto {:?}", j.goto),
+            Stmt::CJump(cj) => write!(f, "\tif {:?} goto {:?}", cj.cond, cj.goto),
             Stmt::Call(n) => write!(f, "\tcall _{}", get_string(*n)),
-            Stmt::StackPush(o) => write!(f, "\tpush {:?}", o),
-            Stmt::StackPop(o) => write!(f, "\tpop {}", o),
+            Stmt::StackPush(o) => write!(f, "\t_push {:?}", o),
+            Stmt::StackPop => write!(f, "\t_pop"),
         }
     }
 }

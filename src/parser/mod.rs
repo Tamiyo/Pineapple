@@ -170,9 +170,54 @@ impl Parser {
      *      Err(ParseError): An error that occured while parsing.
      */
     fn parse_declaration(&mut self) -> Result<Stmt, ParseError> {
-        match *self.peek()? {
+        match **self.peek()? {
+            Symbol::Fun => self.parse_function(),
             _ => self.parse_statement(),
         }
+    }
+    fn parse_identifier_list(&mut self) -> Result<Vec<usize>, ParseError> {
+        let mut identifiers = Vec::new();
+        let mut next = self.next()?;
+        identifiers.push(match &*next {
+            Symbol::Identifier(name) => Ok(intern_string(name.clone())),
+            _ => return Err(ParseError::ExpectedIdentifier(next.clone())),
+        }?);
+
+        while **self.peek()? == Symbol::Comma {
+            self.consume(Symbol::Comma)?;
+            next = self.next()?;
+            identifiers.push(match &*next {
+                Symbol::Identifier(name) => Ok(intern_string(name.clone())),
+                _ => return Err(ParseError::ExpectedIdentifier(next.clone())),
+            }?);
+        }
+        Ok(identifiers)
+    }
+
+    fn parse_function(&mut self) -> Result<Stmt, ParseError> {
+        self.consume(Symbol::Fun)?;
+        let next = self.next()?;
+        let name = match &*next {
+            Symbol::Identifier(name) => Ok(intern_string(name.clone())),
+            _ => Err(ParseError::ExpectedIdentifier(self.peek()?.clone())),
+        }?;
+
+        self.consume(Symbol::LeftParen)?;
+        let params: Vec<usize> = if **self.peek()? != Symbol::RightParen {
+            self.parse_identifier_list()?
+        } else {
+            Vec::new()
+        };
+        self.consume(Symbol::RightParen)?;
+
+        self.consume(Symbol::LeftBrace)?;
+        let mut statements: Vec<Stmt> = Vec::new();
+        while **self.peek()? != Symbol::RightBrace && **self.peek()? != Symbol::Eof {
+            statements.push(self.parse_declaration()?);
+        }
+        self.consume(Symbol::RightBrace)?;
+
+        Ok(Stmt::Function(name, params, statements))
     }
 
     /**
@@ -189,6 +234,7 @@ impl Parser {
             Symbol::If => self.parse_if_statement(),
             Symbol::While => self.parse_while_statement(),
             Symbol::Print => self.parse_print_statement(),
+            Symbol::Return => self.parse_return_statement(),
             _ => self.parse_expression_statement(),
         }
     }
@@ -255,6 +301,17 @@ impl Parser {
         self.consume(Symbol::Semicolon)?;
 
         Ok(Stmt::Print(expr_list))
+    }
+
+    fn parse_return_statement(&mut self) -> Result<Stmt, ParseError> {
+        self.consume(Symbol::Return)?;
+        let expr = if **self.peek()? != Symbol::Semicolon {
+            Some(Box::new(self.parse_expression(Precedence::None)?))
+        } else {
+            None
+        };
+        self.consume(Symbol::Semicolon)?;
+        Ok(Stmt::Return(expr))
     }
 
     fn parse_block_statement(&mut self) -> Result<Stmt, ParseError> {

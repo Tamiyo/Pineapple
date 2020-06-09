@@ -51,7 +51,7 @@ impl ControlFlowGraph {
                     } else {
                         let label = tacs.len() + label_count;
                         label_count += 1;
-                        block.stmts.insert(0, Stmt::Label(label));
+                        block.stmts.insert(0, Stmt::Label(Label::Label(label)));
                     }
                     blocks.push(block);
                     start = i + 1;
@@ -107,7 +107,7 @@ impl ControlFlowGraph {
         let mut stmts: Vec<Stmt> = vec![];
 
         for (i, b) in self.blocks.iter().enumerate() {
-            if self.exec[i] && b.stmts.len() > 2 {
+            if (self.exec[i] && b.stmts.len() > 2) || i == 0 {
                 for s in &b.stmts {
                     stmts.push(s.clone());
                 }

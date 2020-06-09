@@ -14,7 +14,7 @@ impl BasicBlock {
 
     pub fn get_label(&self) -> usize {
         if let Some(Stmt::Label(l)) = self.stmts.first() {
-            *l
+            **l
         } else {
             0
         }
@@ -22,9 +22,9 @@ impl BasicBlock {
 
     pub fn get_goto(&self) -> usize {
         if let Some(Stmt::Jump(j)) = self.stmts.last() {
-            j.goto
+            *j.goto
         } else if let Some(Stmt::CJump(j)) = self.stmts.last() {
-            j.goto
+            *j.goto
         } else {
             0
         }
@@ -46,7 +46,11 @@ impl BasicBlock {
         let len = self.stmts.len();
         for i in 0..len {
             if self.stmts[i] == stmt {
-                self.stmts.remove(i);
+                if self.stmts[i].is_function_pop() {
+                    self.stmts[i] = Stmt::StackPop;
+                } else {
+                    self.stmts.remove(i);
+                }
                 break;
             }
         }

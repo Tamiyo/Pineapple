@@ -10,7 +10,9 @@ use std::collections::HashMap;
 pub mod component;
 
 pub struct TacTranslator {
-    statements: Vec<Stmt>,
+    statements: Vec<Vec<Stmt>>,
+
+    block: Vec<Stmt>,
 
     reg_count: usize,
 
@@ -21,6 +23,8 @@ impl TacTranslator {
     pub fn new() -> Self {
         TacTranslator {
             statements: vec![],
+
+            block: vec![],
 
             reg_count: 0,
 
@@ -38,17 +42,17 @@ impl TacTranslator {
         })
     }
 
-    fn get_label(&mut self) -> usize {
-        self.statements.len()
+    fn get_label(&mut self) -> Label {
+        Label::Label(self.block.len())
     }
 
-    fn merge_labels(&mut self) {
-        let mut marked: Vec<usize> = vec![0; self.statements.len()];
-        let mut label_ref: HashMap<usize, Vec<usize>> = HashMap::new();
+    fn merge_labels(&mut self, b: usize) {
+        let mut block = self.statements[b].clone();
 
-        let mut statements = self.statements.clone();
+        let mut marked: Vec<usize> = vec![0; block.len()];
+        let mut label_ref: HashMap<Label, Vec<usize>> = HashMap::new();
 
-        for (i, stmt) in self.statements.iter().enumerate() {
+        for (i, stmt) in self.statements[b].iter().enumerate() {
             match stmt {
                 Stmt::Label(l) => {
                     let labels = match label_ref.entry(*l) {
@@ -75,10 +79,10 @@ impl TacTranslator {
             };
 
             if i > 1 {
-                if let Stmt::Label(main) = statements[i - 1] {
+                if let Stmt::Label(main) = block[i - 1] {
                     if let Stmt::Label(other) = stmt {
                         marked[i] = 1;
-                        for stmt in statements.iter_mut().take(i + 1) {
+                        for stmt in block.iter_mut().take(i + 1) {
                             if stmt.has_label(*other) {
                                 stmt.change_label(main);
                             }
@@ -88,21 +92,28 @@ impl TacTranslator {
             }
         }
 
-        let filtered = statements
+        let filtered = block
             .iter()
             .enumerate()
             .filter(|(i, _)| marked[*i] == 0)
             .map(|(_, e)| e.clone());
-        self.statements = filtered.collect::<Vec<_>>();
+        self.statements[b] = filtered.collect::<Vec<_>>();
     }
 
-    pub fn translate(&mut self, ast: Vec<ast::Stmt>) -> Vec<Stmt> {
-        let starting_label = self.get_label();
-        self.statements.push(Stmt::Label(starting_label));
+    pub fn translate(&mut self, ast: Vec<ast::Stmt>) -> Vec<Vec<Stmt>> {
         for statement in &ast {
+            if let ast::Stmt::Function(_, _, _) = statement {
+            } else {
+                self.block.push(Stmt::Label(Label::Label(0)));
+            }
             self.translate_statement(statement);
+            self.statements.push(self.block.clone());
+            self.block.clear();
         }
-        self.merge_labels();
+
+        for i in 0..self.statements.len() {
+            self.merge_labels(i);
+        }
         self.statements.clone()
     }
 
@@ -125,6 +136,8 @@ impl TacTranslator {
             ast::Stmt::Print(args) => {
                 self.translate_print_statement(args);
             }
+            ast::Stmt::Return(value) => self.translate_return(value),
+            ast::Stmt::Function(name, args, body) => self.translate_function(name, args, body),
             _ => unimplemented!(),
         }
     }
@@ -142,38 +155,38 @@ impl TacTranslator {
             goto: label,
         };
 
-        self.statements.push(Stmt::CJump(cjump));
+        self.block.push(Stmt::CJump(cjump));
         self.translate_statement(block);
 
         if let Some(stmt) = other {
             let jump = Jump { goto: label };
 
-            self.backpatches.push(self.statements.len());
-            self.statements.push(Stmt::Jump(jump));
+            self.backpatches.push(self.block.len());
+            self.block.push(Stmt::Jump(jump));
 
-            self.statements.push(Stmt::Label(label));
+            self.block.push(Stmt::Label(label));
 
             self.translate_statement(stmt);
             match **stmt {
                 ast::Stmt::If(_, _, _) => {}
                 _ => {
                     let label = self.get_label();
-                    self.statements.push(Stmt::Label(label));
+                    self.block.push(Stmt::Label(label));
 
                     for patch in &self.backpatches {
-                        self.statements[*patch] = Stmt::Jump(Jump { goto: label });
+                        self.block[*patch] = Stmt::Jump(Jump { goto: label });
                     }
                     self.backpatches.clear();
                 }
             }
         } else {
-            self.statements.push(Stmt::Label(label));
+            self.block.push(Stmt::Label(label));
         }
     }
 
     fn translate_while_statement(&mut self, cond: &ast::Expr, block: &ast::Stmt) {
         let label = self.get_label();
-        self.statements.push(Stmt::Label(label));
+        self.block.push(Stmt::Label(label));
 
         let cond = Expr::Operand(self.translate_expression(cond, true));
         let end_label = self.get_label();
@@ -183,24 +196,52 @@ impl TacTranslator {
             goto: end_label,
         };
 
-        self.statements.push(Stmt::CJump(cjump));
+        self.block.push(Stmt::CJump(cjump));
         self.translate_statement(block);
 
         let jump = Jump { goto: label };
-        self.statements.push(Stmt::Jump(jump));
+        self.block.push(Stmt::Jump(jump));
 
-        self.statements.push(Stmt::Label(end_label));
+        self.block.push(Stmt::Label(end_label));
     }
 
     fn translate_print_statement(&mut self, args: &[ast::Expr]) {
         let name = intern_string("print".to_string());
         for arg in args {
             let operand = self.translate_expression(arg, false);
-            self.statements.push(Stmt::StackPush(operand));
+            self.block.push(Stmt::StackPush(operand));
         }
-        self.statements.push(Stmt::Call(name));
+        self.block.push(Stmt::Call(name));
         if !args.is_empty() {
-            self.statements.push(Stmt::StackPop(args.len()));
+            for _ in 0..args.len() {
+                self.block.push(Stmt::StackPop);
+            }
+        }
+    }
+
+    fn translate_return(&mut self, value: &Option<Box<ast::Expr>>) {
+        if let Some(expr) = value {
+            let retval = self.translate_expression(expr, false);
+            self.block.push(Stmt::StackPush(retval));
+        }
+    }
+
+    fn translate_function(&mut self, name: &usize, args: &[usize], body: &[ast::Stmt]) {
+        self.block.push(Stmt::Label(Label::Named(*name)));
+        for arg in args {
+            let p = Stmt::Tac(Tac {
+                lval: Operand::Assignable(SSA {
+                    value: *arg,
+                    ssa: 0,
+                    is_var: true,
+                }),
+                rval: Expr::StackPop,
+            });
+            self.block.push(p);
+        }
+
+        for stmt in body {
+            self.translate_statement(stmt);
         }
     }
 
@@ -237,7 +278,7 @@ impl TacTranslator {
             lval: res,
             rval: Expr::Operand(self.translate_expression(l, false)),
         };
-        self.statements.push(Stmt::Tac(code));
+        self.block.push(Stmt::Tac(code));
 
         res
     }
@@ -252,7 +293,7 @@ impl TacTranslator {
                 self.translate_expression(r, false),
             ),
         };
-        self.statements.push(Stmt::Tac(code));
+        self.block.push(Stmt::Tac(code));
 
         res
     }
@@ -267,7 +308,7 @@ impl TacTranslator {
                 self.translate_expression(r, false),
             ),
         };
-        self.statements.push(Stmt::Tac(code));
+        self.block.push(Stmt::Tac(code));
 
         res
     }

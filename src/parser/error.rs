@@ -10,6 +10,7 @@ pub enum ParseError {
     UnexpectedToken(Token, Symbol),
     UnexpectedInfixOperator(Token),
     UnexpectedPrefixOperator(Token),
+    ExpectedIdentifier(Token),
     ExpectedBinaryOperator(Token),
     ExpectedLiteral(Token),
     ExpectedLValue(Expr),
@@ -35,6 +36,11 @@ impl fmt::Display for ParseError {
                 let line = found.line;
                 let col = found.col;
                 write!(f,                     "At {}:{}. Expected an prefix operator while parsing but instead found: `{:?}`.",                     line,                    col,                    found)
+            }
+            ParseError::ExpectedIdentifier(found) => {
+                let line = found.line;
+                let col = found.col;
+                write!(f,                     "At {}:{}. Expected a identifier while parsing, but instead found: `{:?}`.",                     line,                    col,                    *found)
             }
             ParseError::ExpectedBinaryOperator(found) => {
                 let line = found.line;
