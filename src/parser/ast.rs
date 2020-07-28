@@ -16,6 +16,7 @@ pub enum Expr {
     Boolean(bool),
     Variable(Interned),
     Assign(Interned, Box<Expr>),
+    // Call(Box<Expr>, Vec<Expr>),
     Binary(Box<Expr>, BinOp, Box<Expr>),
     Logical(Box<Expr>, RelOp, Box<Expr>),
     Grouping(Box<Expr>),

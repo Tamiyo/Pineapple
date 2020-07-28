@@ -1,4 +1,7 @@
 use std::collections::HashSet;
+use std::fmt;
+
+pub mod algorithm;
 
 pub struct Dominator {
     pub tree: Vec<HashSet<usize>>,
@@ -41,5 +44,15 @@ impl Dominator {
 
     pub fn get_frontier(&mut self, node: usize) -> &HashSet<usize> {
         &self.frontier[node]
+    }
+}
+
+impl fmt::Debug for Dominator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "TREE: {:?}\nIDOM: {:?}\nDOMF: {:?}\n\n",
+            self.tree, self.immediate, self.frontier
+        )
     }
 }

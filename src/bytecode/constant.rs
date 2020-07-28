@@ -22,6 +22,7 @@ pub enum Constant {
     Number(Distance),
     Identifier(usize),
     Boolean(bool),
+    None,
 }
 
 impl fmt::Display for Constant {
@@ -36,6 +37,7 @@ impl fmt::Display for Constant {
                     write!(f, "false")
                 }
             }
+            Constant::None => write!(f, "None"),
         }
     }
 }

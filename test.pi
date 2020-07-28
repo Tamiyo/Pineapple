@@ -1,2 +1,6 @@
-x = false and true;
-print(x);
+z = 1;
+if (z == 0) {
+    z = 1 + 5 + 6;
+} else {
+    z = 2 + 5;
+}

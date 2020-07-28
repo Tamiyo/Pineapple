@@ -1,2 +1,2 @@
+pub mod constant_optimization;
 pub mod dead_code;
-pub mod constant_optmization;

@@ -7,7 +7,7 @@ use std::thread_local;
 pub type InternIndex = usize;
 
 thread_local!(
-     static  INTERNER: RefCell<Interner> = Default::default()
+     static INTERNER: RefCell<Interner> = Default::default()
 );
 
 // TODO :- Improve this

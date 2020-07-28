@@ -381,6 +381,7 @@ impl Parser {
                 | Symbol::NotEqual
                 | Symbol::EqualEqual => parser.parse_logical(left),
                 Symbol::Equal => parser.parse_assign(left),
+                // Symbol::LeftParen => parser.parse_call(left),
                 _ => Err(ParseError::UnexpectedInfixOperator(parser.peek()?.clone())),
             }
         }
@@ -482,6 +483,13 @@ impl Parser {
             _ => Err(ParseError::ExpectedLValue(left)),
         }
     }
+
+    // fn parse_call(&mut self, left: Expr) -> Result<Expr, ParseError> {
+    //     self.consume(Symbol::LeftParen)?;
+    //     let args = self.parse_expression_list()?;
+    //     self.consume(Symbol::RightParen)?;
+    //     Ok(Expr::Call(Box::new(left), args))
+    // }
 
     /**
      *  [Primary Expression]

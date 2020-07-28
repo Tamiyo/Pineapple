@@ -1,63 +1,62 @@
-use crate::compiler::three_address::component::*;
+use crate::compiler::three_address_code::{Expr, Operand, Stmt};
 
-#[derive(Clone)]
 pub struct BasicBlock {
-    pub stmts: Vec<Stmt>,
+    pub statements: Vec<Stmt>,
 }
 
 impl BasicBlock {
-    pub fn new(stmts: &[Stmt]) -> Self {
+    pub fn new(statements: &[Stmt]) -> Self {
         BasicBlock {
-            stmts: stmts.to_vec(),
+            statements: statements.to_vec(),
         }
     }
 
     pub fn get_label(&self) -> usize {
-        if let Some(Stmt::Label(l)) = self.stmts.first() {
-            **l
+        if let Some(Stmt::Label(l)) = self.statements.first() {
+            *l
         } else {
             0
         }
     }
 
     pub fn get_goto(&self) -> usize {
-        if let Some(Stmt::Jump(j)) = self.stmts.last() {
-            *j.goto
-        } else if let Some(Stmt::CJump(j)) = self.stmts.last() {
-            *j.goto
+        if let Some(Stmt::Jump(j)) = self.statements.last() {
+            *j
+        } else if let Some(Stmt::CJump(_, j)) = self.statements.last() {
+            *j
         } else {
             0
         }
     }
 
-    pub fn gather_variables_defined(&self) -> Vec<SSA> {
-        let mut def: Vec<SSA> = vec![];
-        for s in &self.stmts {
-            if let Stmt::Tac(tac) = s {
-                if let Operand::Assignable(v) = tac.lval {
-                    def.push(v);
+    pub fn get_variables_defined(&self) -> Vec<Operand> {
+        let mut def: Vec<Operand> = vec![];
+        for s in &self.statements {
+            if let Stmt::Tac(lval, _) = s {
+                if let Operand::Assignable(_, _, _) = lval {
+                    def.push(*lval);
                 }
             }
         }
         def
     }
 
-    pub fn remove_statement(&mut self, stmt: Stmt) {
-        let len = self.stmts.len();
+    pub fn remove_statement(&mut self, stmt: &Stmt) {
+        let len = self.statements.len();
         for i in 0..len {
-            if self.stmts[i] == stmt {
-                if self.stmts[i].is_function_pop() {
-                    self.stmts[i] = Stmt::StackPop;
+            if self.statements[i] == *stmt {
+                if let Stmt::Tac(_, Expr::StackPop) = self.statements[i] {
+                    self.statements[i] = Stmt::StackPop;
                 } else {
-                    self.stmts.remove(i);
+                    self.statements.remove(i);
                 }
                 break;
             }
         }
     }
 
-    pub fn patch_phi(&mut self, x: SSA, w: &mut Vec<Stmt>) {
-        for s in &mut self.stmts {
+    pub fn patch_phi(&mut self, x: Operand, w: &mut Vec<Stmt>) {
+        for s in &mut self.statements {
             s.patch_phi(x, w);
         }
     }
