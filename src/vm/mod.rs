@@ -31,7 +31,7 @@ pub struct VM {
      *  R[1] ... R[p]      ->  parameter registers
      *  R[p+1] ... R[p+t]  ->  local registers
      */
-    // TODO - Change constant to its own type (See Mango VM)
+    // TODO - Change constant to its own "VM" type (See Mango VM)
     r: [Constant; 16],
 
     // Return Address
@@ -130,15 +130,6 @@ impl VM {
 
             self.ip += 1;
         }
-        // match instruction {
-        //     Instruction::LOAD(k, c) => {
-        //         self.R[k] = c;
-        //     }
-        //     Instruction::ADD(k, i, j) => {
-        //         self.R[k] = self.R[i] + self.R[j];
-        //     }
-        //     _ => ()
-        // }
 
         Ok(())
     }

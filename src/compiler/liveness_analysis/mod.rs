@@ -8,6 +8,11 @@ use std::collections::HashMap;
 pub mod live_interval;
 
 // https://en.wikipedia.org/wiki/Register_allocation
+/*
+    This could use some tuning. Linear Scan Register Allocation is
+    not ideal for a finished product, but for a "proof of concept"
+    intents and purposes its OK for now.
+*/
 pub fn linear_scan_register_allocation(context: &mut ControlFlowContext) {
     let intervals = compute_live_intervals(&context);
     let R: usize = 16; // Number of registers we have
@@ -47,7 +52,8 @@ pub fn linear_scan_register_allocation(context: &mut ControlFlowContext) {
     }
 
     for ((operand, _), reg) in register.iter() {
-        context.cfg.replace_all_operand_with(*operand, Operand::Register(*reg))
+        context
+            .cfg
+            .replace_all_operand_with(*operand, Operand::Register(*reg))
     }
-
 }

@@ -8,6 +8,10 @@ pub struct Interval {
     pub end: usize,
 }
 
+/*
+    Ideally in the future we would use some form of dataflow analysis /
+    interference graph to better find live-intervals (ranges)
+*/
 pub fn compute_live_intervals(context: &ControlFlowContext) -> Vec<(Operand, Interval)> {
     let mut intervals: HashMap<Operand, Interval> = HashMap::new();
 

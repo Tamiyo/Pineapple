@@ -122,6 +122,14 @@ impl ControlFlowGraph {
         vars
     }
 
+    /*
+        This is a somewhat lazy implementation, I would like to remove this
+        soon. All this does is allow me to lazily implement some features, and
+        it is very inefficient as it does a linear scan / collection  each call.
+
+        Maybe some form of "CFG_CONTEXT" to keep track of specific attributes like
+        statements, locations, etc.
+    */
     pub fn get_statements(&self) -> Vec<Stmt> {
         let mut stmts: Vec<Stmt> = vec![];
 
@@ -158,7 +166,6 @@ impl ControlFlowGraph {
                 }
             }
         }
-
         stmt
     }
 
@@ -193,6 +200,11 @@ impl ControlFlowGraph {
         self.graph.remove(b);
     }
 
+    /*
+        Like "get_statements()", this is pretty inefficient bc it does a
+        linear scan every call.  It might be "better" to just keep track
+        of variable locations (look at this later).
+    */
     pub fn remove_statement(&mut self, stmt: Stmt) {
         let len = self.blocks.len();
         for i in 0..len {
