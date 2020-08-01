@@ -2,15 +2,14 @@ use crate::compiler::compile_ir;
 use crate::compiler::control_flow::ControlFlowContext;
 use crate::compiler::dominator::algorithm::compute_dominators;
 use crate::compiler::liveness_analysis::linear_scan_register_allocation;
-use crate::compiler::static_single_assignment::convert_from_ssa;
-use crate::compiler::static_single_assignment::convert_vars_to_ssa;
-use crate::compiler::static_single_assignment::edge_split;
-use crate::compiler::static_single_assignment::insert_phi_functions;
-use crate::compiler::three_address_code::translate::translate_to_tac_ir;
-use crate::vm::VM;
-
 use crate::compiler::optimization::constant_optimization::constant_optimization;
 use crate::compiler::optimization::dead_code::dead_code_elimination;
+use crate::compiler::ssa::convert_from_ssa;
+use crate::compiler::ssa::convert_vars_to_ssa;
+use crate::compiler::ssa::edge_split;
+use crate::compiler::ssa::insert_phi_functions;
+use crate::{compiler::three_address_code::translate::translate_to_tac_ir, vm::VM};
+
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -100,29 +99,30 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
             constant_optimization(&mut context);
         }
 
-        convert_from_ssa(&mut context);
-        linear_scan_register_allocation(&mut context);
-        // let compiled = compile_ir(&context);
-        // for (i, instr) in compiled.instructions.iter().enumerate() {
-        //     println!("{:<3}:{:>2}{:?}", i, "", instr);
-        // }
-
         if args.debug {
-            for (i, s) in context.cfg.get_statements().into_iter().enumerate() {
-                println!("{:<3}:{:>2}{:?}", i, "", s);
-            }
+            println!("{:?}", context.cfg);
         }
 
         contexts.push(context);
     }
 
-    // this is temporary since we haven't introduced functions
-    let context = &contexts[0];
+    let context = &mut contexts[0];
+    convert_from_ssa(context);
+    linear_scan_register_allocation(context);
+
     let compiled = compile_ir(context);
+    if args.debug {
+        for instr in &compiled.instructions {
+            println!("{:?}", instr);
+        }
+        print!("\n");
+    }
+
+    
     let mut vm: VM = VM::new();
     vm.dispatch(&compiled)?;
 
-    println!("{:?}", vm);
+    // println!("\n{:?}", vm);
 
     Ok(())
 }

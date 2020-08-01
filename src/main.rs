@@ -1,10 +1,10 @@
 use crate::cli::parse_cli;
 
-mod graph;
-mod compiler;
-mod parser;
 mod bytecode;
 mod cli;
+mod compiler;
+mod graph;
+mod parser;
 mod vm;
 
 fn main() {

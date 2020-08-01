@@ -50,24 +50,30 @@ impl Stmt {
 
     pub fn vars_defined(&self) -> Vec<Operand> {
         match self {
-            Stmt::Tac(lval, rval) => lval.vars_defined(),
+            Stmt::Tac(lval, _) => match lval {
+                Operand::Assignable(_, _, _) => vec![*lval],
+                _ => vec![],
+            },
             _ => vec![],
         }
     }
 
     pub fn vars_used(&self) -> Vec<Operand> {
         match self {
-            Stmt::Tac(lval, rval) => rval.vars_used(),
+            Stmt::Tac(_, rval) => rval.vars_used(),
             Stmt::CJump(cond, label) => cond.vars_used(),
-            Stmt::StackPush(target) => target.vars_used(),
+            Stmt::StackPush(target) => match target {
+                Operand::Assignable(_, _, _) => vec![*target],
+                _ => vec![],
+            },
             _ => vec![],
         }
     }
 
     pub fn uses_var(&self, v: Operand) -> bool {
         match self {
-            Stmt::Tac(lval, rval) => rval.uses(v),
-            Stmt::CJump(cond, label) => cond.uses(v),
+            Stmt::Tac(_, rval) => rval.uses(v),
+            Stmt::CJump(cond, _) => cond.uses(v),
             Stmt::StackPush(target) => *target == v,
             _ => false,
         }
@@ -75,8 +81,8 @@ impl Stmt {
 
     pub fn replace_var_use_with_ssa(&mut self, value: usize, ssa: usize, is_var: bool) {
         match self {
-            Stmt::Tac(lval, rval) => rval.replace_with_ssa(value, ssa, is_var),
-            Stmt::CJump(cond, label) => cond.replace_with_ssa(value, ssa, is_var),
+            Stmt::Tac(_, rval) => rval.replace_with_ssa(value, ssa, is_var),
+            Stmt::CJump(cond, _) => cond.replace_with_ssa(value, ssa, is_var),
             Stmt::StackPush(target) => target.replace_with_ssa(value, ssa, is_var),
             _ => (),
         }
@@ -84,7 +90,7 @@ impl Stmt {
 
     pub fn replace_var_def_with_ssa(&mut self, value: usize, ssa: usize, is_var: bool) {
         match self {
-            Stmt::Tac(lval, rval) => lval.replace_with_ssa(value, ssa, is_var),
+            Stmt::Tac(lval, _) => lval.replace_with_ssa(value, ssa, is_var),
             _ => (),
         }
     }
@@ -137,7 +143,7 @@ impl Stmt {
         }
     }
 
-    pub fn patch_phi(&mut self, x: Operand, w: &mut Vec<Stmt>) {
+    pub fn patch_phi(&mut self, x: Operand) -> bool {
         match self {
             Stmt::Tac(_, rval) => {
                 if let Expr::Phi(args) = rval {
@@ -152,10 +158,12 @@ impl Stmt {
                     if args.len() == 1 {
                         *rval = Expr::Operand(args[0]);
                     }
-                    w.push(self.clone());
+                    return true;
+                } else {
+                    return false;
                 }
             }
-            _ => (),
+            _ => return false,
         }
     }
 }
@@ -189,13 +197,36 @@ pub enum Expr {
 impl Expr {
     pub fn vars_used(&self) -> Vec<Operand> {
         match self {
-            Expr::Operand(o) => o.vars_used(),
-            Expr::Binary(l, _, r) => [&l.vars_used()[..], &r.vars_used()[..]].concat(),
-            Expr::Logical(l, _, r) => [&l.vars_used()[..], &r.vars_used()[..]].concat(),
+            Expr::Operand(o) => match *o {
+                Operand::Assignable(_, _, _) => vec![*o],
+                _ => vec![],
+            },
+            Expr::Binary(l, _, r) => [
+                match *l {
+                    Operand::Assignable(_, _, _) => vec![*l],
+                    _ => vec![],
+                },
+                match *r {
+                    Operand::Assignable(_, _, _) => vec![*r],
+                    _ => vec![],
+                },
+            ]
+            .concat(),
+            Expr::Logical(l, _, r) => [
+                match *l {
+                    Operand::Assignable(_, _, _) => vec![*l],
+                    _ => vec![],
+                },
+                match *r {
+                    Operand::Assignable(_, _, _) => vec![*r],
+                    _ => vec![],
+                },
+            ]
+            .concat(),
             Expr::Phi(args) => {
                 let mut used: Vec<Operand> = vec![];
                 for arg in args {
-                    if let Operand::Assignable(_, _, _) = arg {
+                    if let Operand::Assignable(_, _, _) = *arg {
                         used.push(*arg)
                     }
                 }
@@ -213,8 +244,8 @@ impl Expr {
             Expr::Phi(args) => {
                 let mut used: Vec<Operand> = vec![];
                 for arg in args {
-                    if let Operand::Assignable(_, _, _) = arg {
-                        used.push(*arg)
+                    if let Operand::Assignable(_, _, _) = *arg {
+                        used.push(*arg);
                     }
                 }
                 !used.is_empty()
@@ -242,7 +273,7 @@ impl Expr {
         match self {
             Expr::Operand(o) => {
                 if *o == v {
-                    *o = c
+                    *o = c;
                 }
             }
             Expr::Binary(l, _, r) | Expr::Logical(l, _, r) => {
@@ -269,19 +300,19 @@ impl Expr {
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            Expr::Binary(l, o, r) => write!(f, "{:?} {:?} {:?}", l, o, r),
-            Expr::Logical(l, o, r) => write!(f, "{:?} {:?} {:?}", l, o, r),
-            Expr::Operand(o) => write!(f, "{:?}", o),
+            Expr::Binary(l, o, r) => write!(f, "{:?} {:?} {:?}", *l, o, *r),
+            Expr::Logical(l, o, r) => write!(f, "{:?} {:?} {:?}", *l, o, *r),
+            Expr::Operand(o) => write!(f, "{:?}", *o),
             Expr::Phi(args) => {
                 write!(f, "Φ(")?;
                 for (i, arg) in args.iter().enumerate() {
-                    match arg {
+                    match *arg {
                         Operand::Assignable(value, ssa, is_var) => {
-                            if *is_var {
+                            if is_var {
                                 if i != args.len() - 1 {
-                                    write!(f, "{}.{}, ", get_string(*value), ssa)?;
+                                    write!(f, "{}.{}, ", get_string(value), ssa)?;
                                 } else {
-                                    write!(f, "{}.{}", get_string(*value), ssa)?;
+                                    write!(f, "{}.{}", get_string(value), ssa)?;
                                 }
                             } else if i != args.len() - 1 {
                                 write!(f, "_t{}.{}, ", value, ssa)?;
@@ -316,20 +347,6 @@ pub enum Operand {
 }
 
 impl Operand {
-    pub fn vars_defined(&self) -> Vec<Operand> {
-        match self {
-            Operand::Assignable(_, _, _) => vec![*self],
-            _ => vec![],
-        }
-    }
-
-    pub fn vars_used(&self) -> Vec<Operand> {
-        match self {
-            Operand::Assignable(_, _, _) => vec![*self],
-            _ => vec![],
-        }
-    }
-
     pub fn replace_with_ssa(&mut self, value: usize, ssa: usize, is_var: bool) {
         if let Operand::Assignable(v, s, i) = self {
             if *v == value && *i == is_var {

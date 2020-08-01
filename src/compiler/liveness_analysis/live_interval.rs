@@ -16,14 +16,14 @@ pub fn compute_live_intervals(context: &ControlFlowContext) -> Vec<(Operand, Int
     let mut intervals: HashMap<Operand, Interval> = HashMap::new();
 
     for (i, statement) in context.cfg.get_statements().iter().enumerate() {
-        for v in statement.vars_defined() {
+        for v in statement.borrow().vars_defined() {
             match intervals.get(&v) {
                 None => intervals.insert(v, Interval { start: i, end: i }),
                 _ => None,
             };
         }
 
-        for v in statement.vars_used() {
+        for v in statement.borrow().vars_used() {
             match intervals.get_mut(&v) {
                 Some(interval) => interval.end = i,
                 _ => (),

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::bytecode::{Instruction, IR, OR};
+use crate::bytecode::{Instruction, IR};
 use crate::compiler::control_flow::ControlFlowContext;
 use crate::compiler::three_address_code::{Expr, Operand, Stmt};
 use crate::parser::binop::BinOp;
@@ -10,7 +10,7 @@ pub mod control_flow;
 pub mod dominator;
 pub mod liveness_analysis;
 pub mod optimization;
-pub mod static_single_assignment;
+pub mod ssa;
 pub mod three_address_code;
 
 pub struct CompilerContext {
@@ -33,10 +33,18 @@ pub fn compile_ir(context: &ControlFlowContext) -> CompilerContext {
     let statements = context.cfg.get_statements();
     let size = statements.len();
     for (i, statement) in statements.iter().rev().enumerate() {
-        match statement {
-            Stmt::Tac(lval, rval) => compile_tac(&mut compiler_context, lval, rval),
+        match &*statement.borrow() {
             Stmt::Label(label) | Stmt::NamedLabel(label) => {
                 compiler_context.labels.insert(*label, size - i - 1);
+            }
+            _ => (),
+        }
+    }
+
+    for (i, statement) in statements.iter().rev().enumerate() {
+        match &*statement.borrow() {
+            Stmt::Tac(lval, rval) => compile_tac(&mut compiler_context, lval, rval),
+            Stmt::Label(_) | Stmt::NamedLabel(_) => {
                 compiler_context
                     .instructions
                     .push(Instruction::LABEL(size - i - 1));
@@ -55,6 +63,9 @@ pub fn compile_ir(context: &ControlFlowContext) -> CompilerContext {
 
                 compiler_context.instructions.push(Instruction::PUSH(inreg))
             }
+            Stmt::Call(intern, arity) => compiler_context
+                .instructions
+                .push(Instruction::CALL(*intern, *arity)),
             _ => unimplemented!(),
         }
     }

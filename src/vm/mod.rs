@@ -1,9 +1,12 @@
 use crate::bytecode::constant::Constant;
+use crate::bytecode::string_intern::get_string;
 use crate::bytecode::{Instruction, IR};
 use crate::compiler::CompilerContext;
 
 use crate::parser::binop::BinOp;
 use crate::parser::relop::RelOp;
+
+mod natives;
 
 #[derive(Debug)]
 pub struct VM {
@@ -36,6 +39,8 @@ pub struct VM {
 
     // Return Address
     ra: usize,
+
+    stack: Vec<Constant>,
 }
 
 impl VM {
@@ -50,6 +55,7 @@ impl VM {
             fp: 0,
             r: [Constant::None; 16],
             ra: 0,
+            stack: vec![],
         }
     }
 
@@ -118,13 +124,37 @@ impl VM {
                     }
                 }
 
+                Instruction::PUSH(ir) => {
+                    match ir {
+                        IR::REG(reg) => {
+                            self.stack.push(self.r[*reg]);
+                        }
+                        IR::CONST(c) => {
+                            self.stack.push(*c);
+                        }
+                    };
+                }
+
+                Instruction::CALL(intern, arity) => {
+                    let name = get_string(*intern);
+                    if name != "print" {
+                        unimplemented!()
+                    } else {
+                        for _ in 0..*arity {
+                            let value = self
+                                .stack
+                                .pop()
+                                .expect("The stack should have a value here!");
+                            print!("{} ", value);
+                        }
+                        print!("\n");
+                    }
+                }
+
                 Instruction::HLT => {
                     break;
                 }
 
-                Instruction::IGL => {
-                    panic!("Illegal Instruction (somehow...)");
-                }
                 _ => unimplemented!(),
             }
 

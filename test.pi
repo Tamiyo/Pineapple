@@ -4,3 +4,5 @@ if (z == 0) {
 } else {
     z = 2 + 5;
 }
+
+print(z);

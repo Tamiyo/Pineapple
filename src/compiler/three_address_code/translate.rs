@@ -5,37 +5,40 @@ use crate::parser::ast;
 use crate::parser::binop::BinOp;
 use crate::parser::relop::RelOp;
 
-use lazy_static::lazy_static;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 type Label = usize;
 
-lazy_static! {
-    static ref STMTS: Mutex<Vec<Vec<Stmt>>> = Mutex::new(Vec::new());
-    static ref BLOCK: Mutex<Vec<Stmt>> = Mutex::new(Vec::new());
-    static ref REG_COUNT: Mutex<usize> = Mutex::new(0);
-    static ref BACKPATCHES: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+thread_local! {
+    static STMTS: Mutex<Vec<Vec<Stmt>>> = Mutex::new(Vec::new());
+    static BLOCK: Mutex<Vec<Stmt>> = Mutex::new(Vec::new());
+    static REG_COUNT: Mutex<usize> = Mutex::new(0);
+    static BACKPATCHES: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 }
 
 fn get_register() -> Operand {
-    let count = *REG_COUNT.lock().unwrap();
-    *REG_COUNT.lock().unwrap() += 1;
+    let count = REG_COUNT.with(|reg_count| *reg_count.lock().unwrap());
+    REG_COUNT.with(|reg_count| *reg_count.lock().unwrap() += 1);
     Operand::Assignable(count, 0, false)
 }
 
 fn get_label() -> usize {
-    BLOCK.lock().unwrap().len()
+    BLOCK.with(|block| block.lock().unwrap().len())
 }
 
 fn merge_labels(b: usize) {
-    let mut block = STMTS.lock().unwrap()[b].clone();
+    let mut block = STMTS.with(|stmts| stmts.lock().unwrap()[b].clone());
 
     let mut marked: Vec<usize> = vec![0; block.len()];
     let mut label_ref: HashMap<Label, Vec<usize>> = HashMap::new();
 
-    for (i, stmt) in STMTS.lock().unwrap()[b].iter().enumerate() {
+    for (i, stmt) in STMTS
+        .with(|stmts| stmts.lock().unwrap()[b].clone())
+        .iter()
+        .enumerate()
+    {
         match stmt {
             Stmt::Label(l) => {
                 let labels = match label_ref.entry(*l) {
@@ -80,33 +83,33 @@ fn merge_labels(b: usize) {
         .enumerate()
         .filter(|(i, _)| marked[*i] == 0)
         .map(|(_, e)| e.clone());
-    STMTS.lock().unwrap()[b] = filtered.collect::<Vec<_>>();
+    STMTS.with(|stmts| stmts.lock().unwrap()[b] = filtered.collect::<Vec<_>>());
 }
 
 pub fn translate_to_tac_ir(ast: Vec<ast::Stmt>) -> Vec<Vec<Stmt>> {
-    BLOCK.lock().unwrap().push(Stmt::Label(0));
+    BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(0)));
     for statement in &ast {
         if let ast::Stmt::Function(_, _, _) = statement {
             translate_statement(statement);
-            let block = BLOCK.lock().unwrap().clone();
-            STMTS.lock().unwrap().push(block);
-            BLOCK.lock().unwrap().clear();
-            BLOCK.lock().unwrap().push(Stmt::Label(0));
+            let block = BLOCK.with(|block| block.lock().unwrap().clone());
+            STMTS.with(|stmts| stmts.lock().unwrap().push(block));
+            BLOCK.with(|block| block.lock().unwrap().clear());
+            BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(0)));
         } else {
             translate_statement(statement);
         }
     }
 
-    if !BLOCK.lock().unwrap().is_empty() {
-        let block = BLOCK.lock().unwrap().clone();
-        STMTS.lock().unwrap().push(block);
+    if !BLOCK.with(|block| block.lock().unwrap().is_empty()) {
+        let block = BLOCK.with(|block| block.lock().unwrap().clone());
+        STMTS.with(|stmts| stmts.lock().unwrap().push(block));
     }
 
-    let len = STMTS.lock().unwrap().len();
+    let len = STMTS.with(|stmts| stmts.lock().unwrap().len());
     for i in 0..len {
         merge_labels(i)
     }
-    STMTS.lock().unwrap().clone()
+    STMTS.with(|stmts| stmts.lock().unwrap().clone())
 }
 
 fn translate_statement(stmt: &ast::Stmt) {
@@ -140,35 +143,42 @@ fn translate_if_statement(cond: &ast::Expr, block: &ast::Stmt, other: &Option<Bo
     let cond = Expr::Operand(translate_expression(cond, true));
     let cjump = Stmt::CJump(cond, label);
 
-    BLOCK.lock().unwrap().push(cjump);
+    BLOCK.with(|block| block.lock().unwrap().push(cjump));
+    let label2 = get_label();
+    BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(label2)));
     translate_statement(block);
 
     if let Some(stmt) = other {
         let jump = Stmt::Jump(label);
 
-        BACKPATCHES
-            .lock()
-            .unwrap()
-            .push(BLOCK.lock().unwrap().len());
-        BLOCK.lock().unwrap().push(jump);
-
-        BLOCK.lock().unwrap().push(Stmt::Label(label));
+        BACKPATCHES.with(|backpatches| {
+            backpatches
+                .lock()
+                .unwrap()
+                .push(BLOCK.with(|block| block.lock().unwrap().len()))
+        });
+        BLOCK.with(|block| block.lock().unwrap().push(jump));
+        BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(label)));
 
         translate_statement(stmt);
         match **stmt {
             ast::Stmt::If(_, _, _) => {}
             _ => {
                 let label = get_label();
-                BLOCK.lock().unwrap().push(Stmt::Label(label));
+                BLOCK.with(|block| block.lock().unwrap().push(Stmt::Jump(label)));
+                BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(label)));
 
-                for patch in BACKPATCHES.lock().unwrap().iter() {
-                    BLOCK.lock().unwrap()[*patch] = Stmt::Jump(label);
+                for patch in BACKPATCHES
+                    .with(|backpatches| backpatches.lock().unwrap().clone())
+                    .iter()
+                {
+                    BLOCK.with(|block| block.lock().unwrap()[*patch] = Stmt::Jump(label))
                 }
-                BACKPATCHES.lock().unwrap().clear();
+                BACKPATCHES.with(|backpatches| backpatches.lock().unwrap().clear());
             }
         }
     } else {
-        BLOCK.lock().unwrap().push(Stmt::Label(label));
+        // BLOCK.lock().unwrap().push(Stmt::Label(label));
     }
 }
 
@@ -210,37 +220,37 @@ fn translate_expression(expr: &ast::Expr, is_cond: bool) -> Operand {
 
 fn translate_while_statement(cond: &ast::Expr, block: &ast::Stmt) {
     let label = get_label();
-    BLOCK.lock().unwrap().push(Stmt::Label(label));
+    BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(label)));
 
     let cond = Expr::Operand(translate_expression(cond, true));
     let end_label = get_label();
 
     let cjump = Stmt::CJump(cond, end_label);
 
-    BLOCK.lock().unwrap().push(cjump);
+    BLOCK.with(|block| block.lock().unwrap().push(cjump));
     translate_statement(block);
 
     let jump = Stmt::Jump(label);
 
-    BLOCK.lock().unwrap().push(jump);
-    BLOCK.lock().unwrap().push(Stmt::Label(end_label));
+    BLOCK.with(|block| block.lock().unwrap().push(jump));
+    BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(end_label)));
 }
 
 fn translate_print_statement(args: &[ast::Expr]) {
     let name = intern_string("print".to_string());
     for arg in args {
         let operand = translate_expression(arg, false);
-        BLOCK.lock().unwrap().push(Stmt::StackPush(operand));
+        BLOCK.with(|block| block.lock().unwrap().push(Stmt::StackPush(operand)));
     }
 
     let call = Stmt::Call(name, args.len());
-    BLOCK.lock().unwrap().push(call);
+    BLOCK.with(|block| block.lock().unwrap().push(call));
 }
 
 fn translate_return(value: &Option<Box<ast::Expr>>) {
     if let Some(expr) = value {
         let retval = translate_expression(expr, false);
-        BLOCK.lock().unwrap().push(Stmt::Return(retval));
+        BLOCK.with(|block| block.lock().unwrap().push(Stmt::Return(retval)));
     }
 }
 
@@ -271,7 +281,7 @@ fn translate_assign(n: &usize, l: &ast::Expr) -> Operand {
     let rval = Expr::Operand(translate_expression(l, false));
 
     let code = Stmt::Tac(lval, rval);
-    BLOCK.lock().unwrap().push(code);
+    BLOCK.with(|block| block.lock().unwrap().push(code));
 
     lval
 }
@@ -285,7 +295,7 @@ fn translate_binary(l: &ast::Expr, o: &BinOp, r: &ast::Expr) -> Operand {
     );
 
     let code = Stmt::Tac(lval, rval);
-    BLOCK.lock().unwrap().push(code);
+    BLOCK.with(|block| block.lock().unwrap().push(code));
 
     lval
 }
@@ -299,7 +309,7 @@ fn translate_logical(l: &ast::Expr, o: &RelOp, r: &ast::Expr) -> Operand {
     );
 
     let code = Stmt::Tac(lval, rval);
-    BLOCK.lock().unwrap().push(code);
+    BLOCK.with(|block| block.lock().unwrap().push(code));
 
     lval
 }

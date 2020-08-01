@@ -1,46 +1,50 @@
-use crate::bytecode::string_intern::get_string;
+use super::three_address_code::{Expr, Stmt};
 use crate::compiler::control_flow::basic_block::BasicBlock;
 use crate::compiler::control_flow::ControlFlowContext;
-use crate::compiler::three_address_code::{Expr, Operand, Stmt};
+use crate::compiler::three_address_code::Operand;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::{cell::RefCell, rc::Rc};
 
 // Appel p. 407
-pub fn insert_phi_functions(context: &mut ControlFlowContext) {
+pub fn insert_phi_functions(ctx: &mut ControlFlowContext) {
     let mut defsites: HashMap<Operand, HashSet<usize>> = HashMap::new();
-    let mut a_orig: Vec<HashSet<Operand>> = vec![HashSet::new(); context.cfg.blocks.len()];
-    let mut a_phi: Vec<HashSet<Operand>> = vec![HashSet::new(); context.cfg.blocks.len()];
+    let mut a_orig: Vec<HashSet<Operand>> = vec![HashSet::new(); ctx.cfg.blocks.len()];
+    let mut a_phi: Vec<HashSet<Operand>> = vec![HashSet::new(); ctx.cfg.blocks.len()];
 
-    for (i, n) in context.cfg.blocks.iter().enumerate() {
+    for (i, n) in ctx.cfg.blocks.iter().enumerate() {
         for a in n.get_variables_defined() {
-            a_orig[i].insert(a);
             defsites.entry(a).or_insert_with(HashSet::new).insert(i);
+            a_orig[i].insert(a);
         }
     }
 
-    for a in &context.cfg.get_variables() {
+    for a in &ctx.cfg.get_variables() {
         let (value, is_var) = match a {
             Operand::Assignable(value, _, is_var) => (*value, *is_var),
             _ => panic!("Expected SSA Value"),
         };
 
-        let mut w: Vec<usize> = defsites.get(a).unwrap().iter().copied().collect();
+        let mut w: Vec<usize> = defsites.get(&a).unwrap().iter().copied().collect();
 
         while !w.is_empty() {
             let n = w.pop().unwrap();
-            for y in context.dominator.get_frontier(n) {
-                if !a_phi[*y].contains(a) && is_var {
+            for y in ctx.dom.get_frontier(n) {
+                if !a_phi[*y].contains(&a) && is_var {
                     let mut phivec: Vec<Operand> = Vec::new();
-                    for _ in &context.cfg.graph.pred[y] {
+                    for _ in &ctx.cfg.graph.pred[y] {
                         phivec.push(Operand::Assignable(value, 0, is_var));
                     }
-                    context.cfg.blocks[*y].statements.insert(
-                        1,
-                        Stmt::Tac(Operand::Assignable(value, 0, is_var), Expr::Phi(phivec)),
-                    );
+                    let operand = Operand::Assignable(value, 0, is_var);
+                    let statement = Rc::new(RefCell::new(Stmt::Tac(operand, Expr::Phi(phivec))));
+
+                    ctx.cfg.statements.insert(1, Rc::clone(&statement));
+                    ctx.cfg.blocks[*y]
+                        .statements
+                        .insert(1, Rc::clone(&statement));
 
                     a_phi[*y].insert(*a);
-                    if !a_orig[*y].contains(a) {
+                    if !a_orig[*y].contains(&a) {
                         w.push(*y);
                     }
                 }
@@ -55,7 +59,7 @@ pub fn convert_vars_to_ssa(context: &mut ControlFlowContext) {
     let mut stack: HashMap<(usize, bool), Vec<usize>> = HashMap::new();
     for a in &context.cfg.get_variables() {
         let (value, is_var) = match a {
-            Operand::Assignable(value, offset, is_var) => (*value, *is_var),
+            Operand::Assignable(value, _, is_var) => (*value, *is_var),
             _ => panic!("Expected SSA Value"),
         };
 
@@ -75,8 +79,9 @@ fn rename(
 ) {
     for s in &mut context.cfg.blocks[n].statements {
         // if s is not a Φ function, replace the variables
-        for x in s.vars_used() {
-            let (value, is_var) = match x {
+        let vars_used = s.borrow().vars_used();
+        for x in &vars_used {
+            let (value, is_var) = match *x {
                 Operand::Assignable(value, _, is_var) => (value, is_var),
                 _ => panic!("Expected SSA Value"),
             };
@@ -87,20 +92,21 @@ fn rename(
                 .unwrap()
                 .last();
             if let Some(i) = top {
-                s.replace_var_use_with_ssa(value, *i, is_var)
+                s.borrow_mut().replace_var_use_with_ssa(value, *i, is_var);
             }
         }
 
         // update count definition
-        for a in s.vars_defined() {
+        let vars_defined = s.borrow().vars_defined();
+        for a in &vars_defined {
             let (value, is_var) = match a {
-                Operand::Assignable(value, offset, is_var) => (value, is_var),
+                Operand::Assignable(value, _, is_var) => (*value, *is_var),
                 _ => panic!("Expected SSA Value"),
             };
 
             let i = count.get(&(value, is_var)).unwrap();
             stack.get_mut(&(value, is_var)).unwrap().push(*i);
-            s.replace_var_def_with_ssa(value, *i, is_var);
+            s.borrow_mut().replace_var_def_with_ssa(value, *i, is_var);
             *count.get_mut(&(value, is_var)).unwrap() += 1;
         }
     }
@@ -112,12 +118,12 @@ fn rename(
             .position(|&r| r == n)
             .unwrap();
         for stmt in &mut context.cfg.blocks[*y].statements {
-            if let Stmt::Tac(_, Expr::Phi(args)) = stmt {
+            if let Stmt::Tac(_, Expr::Phi(args)) = &mut *stmt.borrow_mut() {
                 let (value, is_var) = match &args[0] {
-                    Operand::Assignable(value, offset, is_var) => (*value, *is_var),
-                    _ => panic!("expected assignable"),
+                    Operand::Assignable(value, _, is_var) => (*value, *is_var),
+                    _ => panic!("Expected Assignable"),
                 };
-                if let Some(i) = stack.get(&(value, is_var)).expect("").last() {
+                if let Some(i) = stack.get(&(value, is_var)).unwrap().last() {
                     args[j] = Operand::Assignable(value, *i, is_var);
                 }
             }
@@ -126,7 +132,7 @@ fn rename(
 
     // rename children
     let mut children: Vec<usize> = vec![];
-    for (i, domi) in context.dominator.immediate.iter().enumerate() {
+    for (i, domi) in context.dom.immediate.iter().enumerate() {
         if domi.contains(&n) {
             children.push(i);
         }
@@ -136,15 +142,15 @@ fn rename(
     }
 
     for s in &context.cfg.blocks[n].statements {
-        for a in s.vars_defined() {
+        for a in s.borrow().vars_defined() {
             let (value, is_var) = match a {
-                Operand::Assignable(value, offset, is_var) => (value, is_var),
+                Operand::Assignable(value, _, is_var) => (value, is_var),
                 _ => panic!("Expected SSA Value"),
             };
 
             stack
                 .get_mut(&(value, is_var))
-                .expect("Expect var to exist")
+                .expect("Expected SSA Value")
                 .pop();
         }
     }
@@ -168,7 +174,7 @@ pub fn edge_split(context: &mut ControlFlowContext) {
                 context.cfg.graph.pred.get_mut(&b).unwrap().remove(&pos);
 
                 let z = context.cfg.blocks.len();
-                context.cfg.blocks.push(BasicBlock::new(&[]));
+                context.cfg.blocks.push(BasicBlock { statements: vec![] });
                 context.cfg.graph.succ.get_mut(&a).unwrap().insert(z);
                 context.cfg.graph.pred.get_mut(&b).unwrap().insert(z);
             }
@@ -178,32 +184,46 @@ pub fn edge_split(context: &mut ControlFlowContext) {
 
 pub fn convert_from_ssa(context: &mut ControlFlowContext) {
     for block in &mut context.cfg.blocks {
-        let mut phi_stmts: Vec<Stmt> = Vec::new();
+        let mut phi_stmts: Vec<Rc<RefCell<Stmt>>> = Vec::new();
 
         for statement in &mut block.statements {
-            for var in statement.vars_defined() {
+            let mut vars_defined: Vec<(usize, bool)> = vec![];
+            for var in statement.borrow().vars_defined() {
                 let (value, is_var) = match var {
                     Operand::Assignable(v, _, i) => (v, i),
                     _ => panic!("Expected SSA Value"),
                 };
-                statement.replace_var_def_with_ssa(value, 0, is_var)
+                vars_defined.push((value, is_var));
             }
 
-            for var in statement.vars_used() {
+            for (value, is_var) in vars_defined {
+                statement
+                    .borrow_mut()
+                    .replace_var_def_with_ssa(value, 0, is_var);
+            }
+
+            let mut vars_used: Vec<(usize, bool)> = vec![];
+            for var in statement.borrow().vars_used() {
                 let (value, is_var) = match var {
                     Operand::Assignable(v, _, i) => (v, i),
                     _ => panic!("Expected SSA Value"),
                 };
-                statement.replace_var_use_with_ssa(value, 0, is_var)
+                vars_used.push((value, is_var));
             }
 
-            if let Stmt::Tac(_, Expr::Phi(_)) = statement {
+            for (value, is_var) in vars_used {
+                statement
+                    .borrow_mut()
+                    .replace_var_use_with_ssa(value, 0, is_var);
+            }
+
+            if let Stmt::Tac(_, Expr::Phi(_)) = *statement.borrow() {
                 phi_stmts.push(statement.clone());
             }
         }
 
         for statement in phi_stmts {
-            block.remove_statement(&statement);
+            block.remove_statement(statement);
         }
     }
 }

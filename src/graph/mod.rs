@@ -57,30 +57,13 @@ impl<T: Debug + Copy + Clone + Hash + Eq> DirectedGraph<T> {
             };
         }
     }
-
-    pub fn remove_edge(&mut self, a: T, b: T) {
-        match self.edges.get_mut(&a) {
-            Some(v) => v.remove(&b),
-            _ => false,
-        };
-
-        match self.succ.get_mut(&a) {
-            Some(v) => v.remove(&b),
-            _ => false,
-        };
-
-        match self.pred.get_mut(&b) {
-            Some(v) => v.remove(&a),
-            _ => false,
-        };
-    }
 }
 
 impl<T: Debug + Copy + Clone + Hash + Eq> Debug for DirectedGraph<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "nodes: {:?}\npred: {:?}\nsucc: {:?}\nedges: {:?}\n\n",
+            "nodes: {:?}\npred: {:?}\nsucc: {:?}\nedges: {:?}\n",
             self.nodes, self.pred, self.succ, self.edges
         )
     }

@@ -1,7 +1,9 @@
 use crate::bytecode::constant::Constant;
 use crate::compiler::control_flow::ControlFlowContext;
+use core::cell::RefCell;
 
 use crate::compiler::three_address_code::{Expr, Operand, Stmt};
+use std::rc::Rc;
 
 // Appel p. 418 and 419
 pub fn constant_optimization(context: &mut ControlFlowContext) {
@@ -9,51 +11,73 @@ pub fn constant_optimization(context: &mut ControlFlowContext) {
     w.reverse();
 
     while !w.is_empty() {
-        let s = w.pop().unwrap();
+        let s: Rc<RefCell<Stmt>> = w.pop().unwrap();
 
-        // Constant Propagation
-        if let Some((v, c)) = s.is_phi_constant() {
+        if let Some((v, c)) = s.borrow().is_phi_constant() {
             for t in context.cfg.get_statements_using(v) {
-                t.replace_operand_with(v, c);
+                t.borrow_mut().replace_operand_with(v, c);
                 if !w.contains(&t) {
                     w.push(t.clone());
                 }
             }
-            context.cfg.remove_statement(s);
-        } else if let Stmt::Tac(lval, Expr::Operand(Operand::Constant(constant))) = s {
-            let c = Operand::Constant(constant);
-            for t in context.cfg.get_statements_using(lval) {
-                t.replace_operand_with(lval, c);
-                if !w.contains(&t) {
-                    w.push(t.clone());
+            context.cfg.remove_statement(Rc::clone(&s));
+        };
+
+        if let Stmt::Tac(lval, Expr::Operand(operand)) = &*s.borrow() {
+            if let Operand::Constant(_) = operand {
+                for t in context.cfg.get_statements_using(*lval) {
+                    t.borrow_mut().replace_operand_with(*lval, *operand);
+                    if !w.contains(&t) {
+                        w.push(Rc::clone(&t));
+                    }
                 }
+                context.cfg.remove_statement(Rc::clone(&s));
             }
-            context.cfg.remove_statement(s);
-        }
+        };
+
         // Copy Propagation
-        else if let Stmt::Tac(lval, Expr::Operand(Operand::Assignable(var, offset, is_var))) = s {
-            let y = Operand::Assignable(var, offset, is_var);
-            for t in context.cfg.get_statements_using(lval) {
-                t.replace_operand_with(lval, y);
-                if !w.contains(&t) {
-                    w.push(t.clone());
+        if let Stmt::Tac(lval, Expr::Operand(operand)) = &*s.borrow() {
+            if let Operand::Assignable(_, _, _) = operand {
+                for t in context.cfg.get_statements_using(*lval) {
+                    t.borrow_mut().replace_operand_with(*lval, *operand);
+                    if !w.contains(&t) {
+                        w.push(Rc::clone(&t));
+                    }
                 }
+                context.cfg.remove_statement(Rc::clone(&s));
             }
-            context.cfg.remove_statement(s);
-        }
+        };
+
         // Constant Folding
-        else if let Stmt::Tac(_, Expr::Binary(Operand::Constant(a), op, Operand::Constant(b))) = s {
-            let constant = Operand::Constant(a.compute_binary(op, b));
-            let stmt = context.cfg.replace_statement_rval_with(s, constant);
-            w.push(stmt);
-        } else if let Stmt::Tac(_, Expr::Logical(Operand::Constant(a), op, Operand::Constant(b))) = s {
-            let constant = Operand::Constant(a.compute_logical(op, b));
-            let stmt = context.cfg.replace_statement_rval_with(s, constant);
-            w.push(stmt);
-        }
+        if let Stmt::Tac(_, rval) = &mut *s.borrow_mut() {
+            if let Expr::Binary(left, op, right) = rval.clone() {
+                match (left, right) {
+                    (Operand::Constant(a), Operand::Constant(b)) => {
+                        let constant = Operand::Constant(a.compute_binary(op, b));
+                        *rval = Expr::Operand(constant);
+                        w.push(Rc::clone(&s));
+                    }
+                    _ => (),
+                };
+            } else if let Expr::Logical(left, op, right) = rval.clone() {
+                match (left,right) {
+                    (Operand::Constant(a), Operand::Constant(b)) => {
+                        let constant = Operand::Constant(a.compute_logical(op, b));
+                        *rval = Expr::Operand(constant);
+                        w.push(Rc::clone(&s));
+                    }
+                    _ => (),
+                };
+            }
+        };
+
         // Constant Conditions
-        else if let Stmt::CJump(Expr::Operand(Operand::Constant(Constant::Boolean(b))), _) = s {
-            context.cfg.remove_conditional_jump(s, b, &mut w);
-        }
+        if let Stmt::CJump(Expr::Operand(operand), _) = &*s.borrow() {
+            if let Operand::Constant(Constant::Boolean(b)) = operand {
+                context
+                    .cfg
+                    .remove_conditional_jump(Rc::clone(&s), *b, &mut w);
+            }
+        };
     }
 }

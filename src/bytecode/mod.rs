@@ -21,6 +21,8 @@ pub enum IR {
 }
 
 type Label = usize;
+type InternIndex = usize;
+type Arity = usize;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Instruction {
@@ -60,12 +62,17 @@ pub enum Instruction {
     NEQ(OR, IR, IR),
 
     PUSH(IR),
-
     // POP(OR),
+
+    // PUSHA
+    // POPA
+
     JUMP(Label),
 
     // Branch if true
-    BT(IR, Label), 
+    BT(IR, Label),
+
+    CALL(InternIndex, Arity),
 
     /**
      *  [Halt]
@@ -73,11 +80,4 @@ pub enum Instruction {
      *  Halts the VM's execution at the current instruction.
      */
     HLT,
-
-    /**
-     *  [Illegal Instruction]
-     *
-     *  Called when an invalid instruction is given.
-     */
-    IGL,
 }

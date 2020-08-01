@@ -1,15 +1,18 @@
 use crate::compiler::control_flow::basic_block::BasicBlock;
 use crate::compiler::dominator::Dominator;
-use crate::compiler::three_address_code::{Expr, Operand, Stmt};
+use crate::compiler::three_address_code::Operand;
+use crate::compiler::three_address_code::Stmt;
 use crate::graph::DirectedGraph;
+use std::cell::RefCell;
 
-use std::fmt;
+use std::cmp::max;
+use std::{fmt, rc::Rc};
 
 pub mod basic_block;
 
 pub struct ControlFlowContext {
     pub cfg: ControlFlowGraph,
-    pub dominator: Dominator,
+    pub dom: Dominator,
 }
 
 impl ControlFlowContext {
@@ -19,86 +22,70 @@ impl ControlFlowContext {
 
         ControlFlowContext {
             cfg,
-            dominator: Dominator::new(size),
+            dom: Dominator::new(size),
         }
-    }
-}
-
-impl fmt::Debug for ControlFlowContext {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(
-            f,
-            "GRAPH:\n{:?}DOMINATOR TREE:\n{:?}",
-            self.cfg, self.dominator
-        )
     }
 }
 
 pub struct ControlFlowGraph {
     pub blocks: Vec<BasicBlock>,
+    pub statements: Vec<Rc<RefCell<Stmt>>>,
     pub graph: DirectedGraph<usize>,
 }
 
 impl ControlFlowGraph {
     pub fn new(tacs: Vec<Stmt>) -> Self {
+        let mut label_count = 0;
+
         let mut blocks: Vec<BasicBlock> = vec![];
-        let mut start: usize = 0;
-        let mut label_count = 1;
-        for (i, stmt) in tacs.iter().enumerate() {
+
+        let mut block_statements: Vec<Rc<RefCell<Stmt>>> = vec![];
+        let mut statements: Vec<Rc<RefCell<Stmt>>> = vec![];
+
+        for stmt in &tacs {
+            let statement = Rc::new(RefCell::new(stmt.clone()));
+            block_statements.push(Rc::clone(&statement));
+            statements.push(statement);
+
             match stmt {
-                Stmt::Label(_) => {
-                    if i - start != 0 {
-                        let mut block = BasicBlock::new(&tacs[start..i]);
-                        match block.statements.last() {
-                            Some(Stmt::Jump(_)) | Some(Stmt::CJump(_, _)) => (),
-                            _ => {
-                                let next_label = &tacs[i];
-                                if let Stmt::Label(l) = next_label {
-                                    block.statements.push(Stmt::Jump(*l));
-                                }
-                            }
-                        }
-                        blocks.push(block);
-                        start = i;
-                    }
+                Stmt::Label(label) => {
+                    label_count = max(label_count, *label + 1);
                 }
                 Stmt::Jump(_) | Stmt::CJump(_, _) => {
-                    let mut block = BasicBlock::new(&tacs[start..i + 1]);
-                    if let Some(Stmt::Label(_)) = block.statements.first() {
-                    } else {
-                        let label = tacs.len() + label_count;
-                        label_count += 1;
-                        block.statements.insert(0, Stmt::Label(label));
-                    }
+                    let block = BasicBlock {
+                        statements: block_statements.clone(),
+                    };
                     blocks.push(block);
-                    start = i + 1;
+                    block_statements.clear();
                 }
                 _ => (),
             };
         }
 
-        if start != tacs.len() {
-            let block = BasicBlock::new(&tacs[start..]);
+        if !block_statements.is_empty() {
+            let block = BasicBlock {
+                statements: block_statements,
+            };
             blocks.push(block);
         }
 
-        // Connect Nodes
         let mut graph: DirectedGraph<usize> = DirectedGraph::new();
-        let mut label_to_node: Vec<Vec<usize>> = vec![vec![]; tacs.len() + label_count];
-        for (i, block) in blocks.iter().enumerate() {
+        let mut label_to_block: Vec<Vec<usize>> = vec![vec![]; label_count];
+
+        for i in 0..blocks.len() {
             graph.insert(i);
-            label_to_node[block.get_label()].push(i);
+            label_to_block[blocks[i].get_label()].push(i);
         }
 
         for i in 0..blocks.len() {
-            let g = blocks[i].get_goto();
-            for n in &label_to_node[g] {
+            let g = blocks[i].get_jump();
+            for n in &label_to_block[g] {
                 if i < blocks.len() - 1 && *n > 0 {
                     graph.add_edge(i, *n);
                 }
             }
         }
-        // Fix offset if statements
+
         for i in 1..blocks.len() {
             if graph.pred[&i].is_empty() {
                 graph.add_edge(i - 1, i);
@@ -106,78 +93,104 @@ impl ControlFlowGraph {
         }
 
         ControlFlowGraph {
-            blocks: blocks,
-            graph: graph,
+            blocks,
+            statements,
+            graph,
         }
+    }
+
+    pub fn get_statements(&self) -> Vec<Rc<RefCell<Stmt>>> {
+        let mut statements: Vec<Rc<RefCell<Stmt>>> = vec![];
+        for block in &self.blocks {
+            for statement in &block.statements {
+                statements.push(Rc::clone(statement));
+            }
+        }
+        statements
+    }
+
+    pub fn get_statements_using(&mut self, v: Operand) -> Vec<Rc<RefCell<Stmt>>> {
+        let mut statements: Vec<Rc<RefCell<Stmt>>> = vec![];
+
+        for block in &self.blocks {
+            for statement in &block.statements {
+                if statement.borrow().uses_var(v) {
+                    statements.push(Rc::clone(statement));
+                }
+            }
+        }
+
+        statements
     }
 
     pub fn get_variables(&self) -> Vec<Operand> {
-        let mut vars: Vec<Operand> = vec![];
+        let mut variables: Vec<Operand> = vec![];
 
-        for (_, b) in self.blocks.iter().enumerate() {
-            for s in &b.statements {
-                vars.append(&mut s.vars_defined());
-            }
-        }
-        vars
-    }
-
-    /*
-        This is a somewhat lazy implementation, I would like to remove this
-        soon. All this does is allow me to lazily implement some features, and
-        it is very inefficient as it does a linear scan / collection  each call.
-
-        Maybe some form of "CFG_CONTEXT" to keep track of specific attributes like
-        statements, locations, etc.
-    */
-    pub fn get_statements(&self) -> Vec<Stmt> {
-        let mut stmts: Vec<Stmt> = vec![];
-
-        for (i, b) in self.blocks.iter().enumerate() {
-            for s in &b.statements {
-                stmts.push(s.clone());
+        for block in &self.blocks {
+            for statement in &block.statements {
+                variables.append(&mut statement.borrow().vars_defined());
             }
         }
 
-        stmts
-    }
-
-    pub fn get_statements_using(&mut self, v: Operand) -> Vec<&mut Stmt> {
-        let mut stmts: Vec<&mut Stmt> = vec![];
-
-        for (_, b) in self.blocks.iter_mut().enumerate() {
-            for s in &mut b.statements {
-                if s.uses_var(v) {
-                    stmts.push(s);
-                }
-            }
-        }
-        stmts
-    }
-
-    pub fn replace_statement_rval_with(&mut self, stmt: Stmt, rval: Operand) -> Stmt {
-        for (_, b) in self.blocks.iter_mut().enumerate() {
-            for s in &mut b.statements {
-                if stmt == *s {
-                    if let Stmt::Tac(_, r) = s {
-                        *r = Expr::Operand(rval);
-                    }
-                    return s.clone();
-                }
-            }
-        }
-        stmt
+        variables
     }
 
     pub fn replace_all_operand_with(&mut self, orig: Operand, new: Operand) {
-        for (_, b) in self.blocks.iter_mut().enumerate() {
-            for s in &mut b.statements {
-                s.replace_all_operand_with(orig, new);
+        for block in &mut self.blocks {
+            for statement in &mut block.statements {
+                statement.borrow_mut().replace_all_operand_with(orig, new)
             }
         }
     }
 
-    fn remove_block(&mut self, b: usize, w: &mut Vec<Stmt>) {
+    pub fn remove_statement(&mut self, s: Rc<RefCell<Stmt>>) {
+        for block in &mut self.blocks {
+            let len = block.statements.len();
+            for i in 0..len {
+                if block.statements[i] == s {
+                    block.remove_statement_at_index(i);
+                    break;
+                }
+            }
+            if block.statements.len() < 3 {
+                block.statements.clear();
+            }
+        }
+    }
+
+    pub fn remove_conditional_jump(
+        &mut self,
+        stmt: Rc<RefCell<Stmt>>,
+        condition: bool,
+        w: &mut Vec<Rc<RefCell<Stmt>>>,
+    ) {
+        let mut i = 0;
+
+        for (bi, b) in self.blocks.iter().enumerate() {
+            for s in &b.statements {
+                if stmt == *s {
+                    i = bi;
+                    break;
+                }
+            }
+        }
+
+        if condition {
+            self.remove_block(i + 1, w);
+        } else {
+            let goto_label = self.blocks[i].get_jump();
+            for (bi, b) in &mut self.blocks.iter().enumerate() {
+                if b.get_label() == goto_label {
+                    self.remove_block(bi, w);
+                    break;
+                }
+            }
+        }
+
+        self.remove_statement(stmt);
+    }
+
+    fn remove_block(&mut self, b: usize, w: &mut Vec<Rc<RefCell<Stmt>>>) {
         for var in self.blocks[b].get_variables_defined() {
             for (_, b) in self.blocks.iter_mut().enumerate() {
                 b.patch_phi(var, w);
@@ -199,59 +212,18 @@ impl ControlFlowGraph {
         self.blocks[b].statements.clear();
         self.graph.remove(b);
     }
-
-    /*
-        Like "get_statements()", this is pretty inefficient bc it does a
-        linear scan every call.  It might be "better" to just keep track
-        of variable locations (look at this later).
-    */
-    pub fn remove_statement(&mut self, stmt: Stmt) {
-        let len = self.blocks.len();
-        for i in 0..len {
-            let slen = self.blocks[i].statements.len();
-            for j in 0..slen {
-                if self.blocks[i].statements[j] == stmt {
-                    self.blocks[i].remove_statement(&stmt);
-                    return;
-                }
-            }
-        }
-    }
-
-    pub fn remove_conditional_jump(&mut self, stmt: Stmt, condition: bool, w: &mut Vec<Stmt>) {
-        let mut i = 0;
-
-        for (bi, b) in self.blocks.iter().enumerate() {
-            for s in &b.statements {
-                if stmt == *s {
-                    i = bi;
-                    break;
-                }
-            }
-        }
-        if condition {
-            self.remove_block(i + 1, w);
-        } else {
-            let goto_label = self.blocks[i].get_goto();
-            for (bi, b) in &mut self.blocks.iter().enumerate() {
-                if b.get_label() == goto_label {
-                    self.remove_block(bi, w);
-                    break;
-                }
-            }
-        }
-
-        self.remove_statement(stmt);
-    }
 }
 
 impl fmt::Debug for ControlFlowGraph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        for (i, b) in self.blocks.iter().enumerate() {
-            if b.statements.len() > 2 {
-                write!(f, "BLOCK {:?}\n{:#?}\n\n", i, b.statements)?;
+        let mut i = 0;
+        for block in &self.blocks {
+            for statement in &block.statements {
+                write!(f, "{}:\t{:?}\n", i, *statement.borrow())?;
+                i += 1;
             }
         }
-        write!(f, "DAG: {:?}\n\n", self.graph)
+        write!(f, "{:?}", self.graph)?;
+        Ok(())
     }
 }

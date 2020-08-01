@@ -11,13 +11,13 @@ pub fn compute_dominators(context: &mut ControlFlowContext) {
 
 fn compute_dom_tree(context: &mut ControlFlowContext) {
     // dominator of the start node is the start of the cfg
-    context.dominator.insert_dominator(0, 0);
+    context.dom.insert_dominator(0, 0);
     let len = context.cfg.blocks.len();
 
     // for all other nodes, set all nodes as the dominators
     for i in 1..len {
         for j in 0..len {
-            context.dominator.insert_dominator(i, j);
+            context.dom.insert_dominator(i, j);
         }
     }
 
@@ -32,18 +32,18 @@ fn compute_dom_tree(context: &mut ControlFlowContext) {
             let mut diff: HashSet<usize> = HashSet::new();
             for (i, p) in context.cfg.graph.pred.get(&n).unwrap().iter().enumerate() {
                 if i == 0 {
-                    diff = context.dominator.get_dominator(*p).clone();
+                    diff = context.dom.get_dominator(*p).clone();
                 } else {
                     diff = diff
-                        .intersection(context.dominator.get_dominator(*p))
+                        .intersection(context.dom.get_dominator(*p))
                         .copied()
                         .collect();
                 }
             }
             let unioned = diff.union(&singleton).copied().collect();
-            let prev = context.dominator.get_dominator(n).clone();
-            context.dominator.set_dominator(n, unioned);
-            if context.dominator.get_dominator(n) != &prev {
+            let prev = context.dom.get_dominator(n).clone();
+            context.dom.set_dominator(n, unioned);
+            if context.dom.get_dominator(n) != &prev {
                 changed = true;
             }
         }
@@ -54,13 +54,13 @@ fn compute_idom_tree(context: &mut ControlFlowContext) {
     for n in 1..context.cfg.blocks.len() {
         let mut min_index = 0;
         let mut min_value = context.cfg.blocks.len();
-        for e in context.dominator.get_dominator(n) {
+        for e in context.dom.get_dominator(n) {
             if *e != n && n - e < min_value {
                 min_value = n - e;
                 min_index = *e;
             }
         }
-        context.dominator.insert_immediate(n, min_index);
+        context.dom.insert_immediate(n, min_index);
     }
 }
 
@@ -70,9 +70,9 @@ fn compute_domf_tree(context: &mut ControlFlowContext) {
         if context.cfg.graph.pred.get(&b).unwrap().len() >= 2 {
             for p in context.cfg.graph.pred.get(&b).unwrap().iter() {
                 let mut runner = *p;
-                while runner != context.dominator.get_immediate_at(b, 0) {
-                    context.dominator.insert_frontier(runner, b);
-                    runner = context.dominator.get_immediate_at(runner, 0);
+                while runner != context.dom.get_immediate_at(b, 0) {
+                    context.dom.insert_frontier(runner, b);
+                    runner = context.dom.get_immediate_at(runner, 0);
                 }
             }
         }
