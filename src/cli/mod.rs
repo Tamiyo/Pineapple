@@ -141,7 +141,7 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
 
     let compiled = compile_ir(context);
     if args.debug {
-        // println!("::Instruction Count:: {}", compiled.instructions.len());
+        println!("::Instruction Count:: {}", compiled.instructions.len());
         for instr in &compiled.instructions {
             println!("{:?}", instr);
         }

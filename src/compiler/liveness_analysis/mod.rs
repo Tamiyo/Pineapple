@@ -76,7 +76,6 @@ pub fn liveness_analysis(ctx: &ControlFlowContext, ig: &mut InterferenceGraph) {
         }
 
         if converged {
-            println!("converged after '{:?}' iterations", i);
             break;
         }
         i += 1;
