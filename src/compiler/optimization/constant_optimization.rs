@@ -60,7 +60,7 @@ pub fn constant_optimization(context: &mut ControlFlowContext) {
                     _ => (),
                 };
             } else if let Expr::Logical(left, op, right) = rval.clone() {
-                match (left,right) {
+                match (left, right) {
                     (Operand::Constant(a), Operand::Constant(b)) => {
                         let constant = Operand::Constant(a.compute_logical(op, b));
                         *rval = Expr::Operand(constant);

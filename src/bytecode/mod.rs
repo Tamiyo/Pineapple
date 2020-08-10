@@ -14,15 +14,17 @@ pub mod string_intern;
 //
 pub type OR = usize;
 
+type Label = usize;
+type InternIndex = usize;
+type Arity = usize;
+type StackOffset = usize;
+
 #[derive(Debug, Copy, Clone)]
 pub enum IR {
     REG(usize),
     CONST(Constant),
+    STACK(StackOffset),
 }
-
-type Label = usize;
-type InternIndex = usize;
-type Arity = usize;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Instruction {
@@ -52,13 +54,12 @@ pub enum Instruction {
     // POW(OR, IR, IR),
     // AND(OR, IR, IR),
     // OR(OR, IR, IR),
+    LT(OR, IR, IR),
+    LTE(OR, IR, IR),
+    GT(OR, IR, IR),
+    GTE(OR, IR, IR),
 
-    // LT(OR, IR, IR),
-    // LTE(OR, IR, IR),
-    // GT(OR, IR, IR),
-    // GTE(OR, IR, IR),
-
-    // EQ(OR, IR, IR),
+    EQ(OR, IR, IR),
     NEQ(OR, IR, IR),
 
     PUSH(IR),
@@ -66,7 +67,6 @@ pub enum Instruction {
 
     // PUSHA
     // POPA
-
     JUMP(Label),
 
     // Branch if true

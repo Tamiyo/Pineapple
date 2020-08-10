@@ -15,6 +15,7 @@ thread_local! {
     static STMTS: Mutex<Vec<Vec<Stmt>>> = Mutex::new(Vec::new());
     static BLOCK: Mutex<Vec<Stmt>> = Mutex::new(Vec::new());
     static REG_COUNT: Mutex<usize> = Mutex::new(0);
+    static LABEL_COUNT: Mutex<usize> = Mutex::new(1);
     static BACKPATCHES: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 }
 
@@ -25,7 +26,9 @@ fn get_register() -> Operand {
 }
 
 fn get_label() -> usize {
-    BLOCK.with(|block| block.lock().unwrap().len())
+    let label = LABEL_COUNT.with(|lb| *lb.lock().unwrap());
+    LABEL_COUNT.with(|lb| *lb.lock().unwrap() += 1);
+    label
 }
 
 fn merge_labels(b: usize) {
@@ -139,6 +142,17 @@ fn translate_statement(stmt: &ast::Stmt) {
 
 fn translate_if_statement(cond: &ast::Expr, block: &ast::Stmt, other: &Option<Box<ast::Stmt>>) {
     let label = get_label();
+    let possible_label = get_label();
+    BLOCK.with(|b| {
+        let mut block = b.lock().unwrap();
+        let nlast = block.last().unwrap();
+        match nlast {
+            Stmt::Label(_) => (),
+            _ => {
+                block.push(Stmt::Label(possible_label));
+            }
+        }
+    });
 
     let cond = Expr::Operand(translate_expression(cond, true));
     let cjump = Stmt::CJump(cond, label);
@@ -146,6 +160,7 @@ fn translate_if_statement(cond: &ast::Expr, block: &ast::Stmt, other: &Option<Bo
     BLOCK.with(|block| block.lock().unwrap().push(cjump));
     let label2 = get_label();
     BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(label2)));
+
     translate_statement(block);
 
     if let Some(stmt) = other {
@@ -178,7 +193,7 @@ fn translate_if_statement(cond: &ast::Expr, block: &ast::Stmt, other: &Option<Bo
             }
         }
     } else {
-        // BLOCK.lock().unwrap().push(Stmt::Label(label));
+        //    BLOCK.with(|block|  block.lock().unwrap().push(Stmt::Label(label)));
     }
 }
 
@@ -220,7 +235,17 @@ fn translate_expression(expr: &ast::Expr, is_cond: bool) -> Operand {
 
 fn translate_while_statement(cond: &ast::Expr, block: &ast::Stmt) {
     let label = get_label();
-    BLOCK.with(|block| block.lock().unwrap().push(Stmt::Label(label)));
+    BLOCK.with(|block| {
+        let mut block = block.lock().unwrap();
+        let nlast = block.last().unwrap();
+        match nlast {
+            Stmt::CJump(_, _) | Stmt::Jump(_) => block.push(Stmt::Label(label)),
+            _ => {
+                block.push(Stmt::Jump(label));
+                block.push(Stmt::Label(label))
+            }
+        }
+    });
 
     let cond = Expr::Operand(translate_expression(cond, true));
     let end_label = get_label();

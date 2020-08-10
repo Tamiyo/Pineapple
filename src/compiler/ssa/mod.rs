@@ -182,48 +182,83 @@ pub fn edge_split(context: &mut ControlFlowContext) {
     }
 }
 
+// pub fn convert_from_ssa(context: &mut ControlFlowContext) {
+//     for block in &mut context.cfg.blocks {
+//         let mut phi_stmts: Vec<Rc<RefCell<Stmt>>> = Vec::new();
+
+//         for statement in &mut block.statements {
+//             let mut vars_defined: Vec<(usize, bool)> = vec![];
+//             for var in statement.borrow().vars_defined() {
+//                 let (value, is_var) = match var {
+//                     Operand::Assignable(v, _, i) => (v, i),
+//                     _ => panic!("Expected SSA Value"),
+//                 };
+//                 vars_defined.push((value, is_var));
+//             }
+
+//             for (value, is_var) in vars_defined {
+//                 statement
+//                     .borrow_mut()
+//                     .replace_var_def_with_ssa(value, 0, is_var);
+//             }
+
+//             let mut vars_used: Vec<(usize, bool)> = vec![];
+//             for var in statement.borrow().vars_used() {
+//                 let (value, is_var) = match var {
+//                     Operand::Assignable(v, _, i) => (v, i),
+//                     _ => panic!("Expected SSA Value"),
+//                 };
+//                 vars_used.push((value, is_var));
+//             }
+
+//             for (value, is_var) in vars_used {
+//                 statement
+//                     .borrow_mut()
+//                     .replace_var_use_with_ssa(value, 0, is_var);
+//             }
+
+//             if let Stmt::Tac(_, Expr::Phi(_)) = *statement.borrow() {
+//                 phi_stmts.push(statement.clone());
+//             }
+//         }
+
+// for statement in phi_stmts {
+//     block.remove_statement(statement);
+// }
+//     }
+// }
+
 pub fn convert_from_ssa(context: &mut ControlFlowContext) {
-    for block in &mut context.cfg.blocks {
-        let mut phi_stmts: Vec<Rc<RefCell<Stmt>>> = Vec::new();
+    let mut phivec: Vec<Rc<RefCell<Stmt>>> = vec![];
 
-        for statement in &mut block.statements {
-            let mut vars_defined: Vec<(usize, bool)> = vec![];
-            for var in statement.borrow().vars_defined() {
-                let (value, is_var) = match var {
-                    Operand::Assignable(v, _, i) => (v, i),
-                    _ => panic!("Expected SSA Value"),
+    for (i, block) in context.cfg.blocks.clone().iter().enumerate() {
+        for statement in &block.statements {
+            if let Stmt::Tac(lval, Expr::Phi(args)) = &*statement.borrow() {
+                phivec.push(Rc::clone(statement));
+
+                let (value, ssa, is_var) = match lval {
+                    Operand::Assignable(value, ssa, is_var) => (*value, *ssa, *is_var),
+                    _ => panic!("Expected Assignable!"),
                 };
-                vars_defined.push((value, is_var));
-            }
 
-            for (value, is_var) in vars_defined {
-                statement
-                    .borrow_mut()
-                    .replace_var_def_with_ssa(value, 0, is_var);
-            }
+                let preds = &context.cfg.graph.pred[&i];
+                for i in 0..args.len() {
+                    let arg = args[i];
+                    let preds_vec: Vec<_> = preds.into_iter().collect();
+                    let pred = preds_vec[i];
 
-            let mut vars_used: Vec<(usize, bool)> = vec![];
-            for var in statement.borrow().vars_used() {
-                let (value, is_var) = match var {
-                    Operand::Assignable(v, _, i) => (v, i),
-                    _ => panic!("Expected SSA Value"),
-                };
-                vars_used.push((value, is_var));
-            }
-
-            for (value, is_var) in vars_used {
-                statement
-                    .borrow_mut()
-                    .replace_var_use_with_ssa(value, 0, is_var);
-            }
-
-            if let Stmt::Tac(_, Expr::Phi(_)) = *statement.borrow() {
-                phi_stmts.push(statement.clone());
+                    let statement =
+                        Stmt::Tac(Operand::Assignable(value, ssa, is_var), Expr::Operand(arg));
+                    let len = context.cfg.blocks[*pred].statements.len();
+                    context.cfg.blocks[*pred]
+                        .statements
+                        .insert(len - 1, Rc::new(RefCell::new(statement)));
+                }
             }
         }
+    }
 
-        for statement in phi_stmts {
-            block.remove_statement(statement);
-        }
+    for statement in phivec {
+        context.cfg.remove_statement(statement);
     }
 }

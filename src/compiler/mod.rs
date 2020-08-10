@@ -119,6 +119,21 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Operand, rval: &Ex
                 RelOp::NotEqual => compiler_context
                     .instructions
                     .push(Instruction::NEQ(outreg, a, b)),
+                RelOp::EqualEqual => compiler_context
+                    .instructions
+                    .push(Instruction::EQ(outreg, a, b)),
+                RelOp::Less => compiler_context
+                    .instructions
+                    .push(Instruction::LT(outreg, a, b)),
+                RelOp::LessEqual => compiler_context
+                    .instructions
+                    .push(Instruction::LTE(outreg, a, b)),
+                RelOp::Greater => compiler_context
+                    .instructions
+                    .push(Instruction::GT(outreg, a, b)),
+                RelOp::GreaterEqual => compiler_context
+                    .instructions
+                    .push(Instruction::GTE(outreg, a, b)),
                 _ => unimplemented!(),
             }
         }

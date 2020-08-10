@@ -59,8 +59,8 @@ impl<'a> Scanner<'a> {
      *      Vec<char> : A vector of characters that were consumed.
      */
     fn consume_while<F>(&mut self, x: F) -> Result<Vec<char>, ScanError>
-    where
-        F: Fn(char) -> bool,
+        where
+            F: Fn(char) -> bool,
     {
         let mut chars: Vec<char> = Vec::new();
         while let Some(&ch) = self.it.peek() {

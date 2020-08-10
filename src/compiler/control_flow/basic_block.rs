@@ -1,14 +1,32 @@
 use crate::compiler::three_address_code::Operand;
 use crate::compiler::three_address_code::Stmt;
 use core::cell::RefCell;
+use std::collections::HashSet;
+use std::iter::FromIterator;
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BasicBlock {
     pub statements: Vec<Rc<RefCell<Stmt>>>,
 }
 
 impl BasicBlock {
+    pub fn def(&self) -> Vec<Operand> {
+        let mut v = vec![];
+        for statement in &self.statements {
+            v.append(&mut statement.borrow().vars_defined());
+        }
+        v
+    }
+
+    pub fn used(&self) -> Vec<Operand> {
+        let mut v = vec![];
+        for statement in &self.statements {
+            v.append(&mut statement.borrow().vars_used());
+        }
+        v
+    }
+
     pub fn get_label(&self) -> usize {
         match *self.statements[0].borrow() {
             Stmt::Label(label) => label,
@@ -34,14 +52,6 @@ impl BasicBlock {
     }
 
     pub fn remove_statement_at_index(&mut self, index: usize) {
-        // match &*self.statements[index].borrow() {
-        //     Stmt::Tac(_, Expr::StackPop) => {
-        //         self.statements[index].replace(Stmt::StackPop);
-        //     }
-        //     _ => {
-        //         self.statements.remove(index);
-        //     }
-        // };
         self.statements.remove(index);
     }
 

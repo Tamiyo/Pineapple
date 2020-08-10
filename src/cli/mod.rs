@@ -1,14 +1,19 @@
 use crate::compiler::compile_ir;
 use crate::compiler::control_flow::ControlFlowContext;
 use crate::compiler::dominator::algorithm::compute_dominators;
-use crate::compiler::liveness_analysis::linear_scan_register_allocation;
+use crate::compiler::liveness_analysis::interference_graph::InterferenceGraph;
+use crate::compiler::liveness_analysis::liveness_analysis;
+use crate::compiler::liveness_analysis::register_alloc::register_alloc;
 use crate::compiler::optimization::constant_optimization::constant_optimization;
 use crate::compiler::optimization::dead_code::dead_code_elimination;
 use crate::compiler::ssa::convert_from_ssa;
 use crate::compiler::ssa::convert_vars_to_ssa;
 use crate::compiler::ssa::edge_split;
 use crate::compiler::ssa::insert_phi_functions;
-use crate::{compiler::three_address_code::translate::translate_to_tac_ir, vm::VM};
+use crate::{
+    compiler::three_address_code::{translate::translate_to_tac_ir, Operand},
+    vm::VM,
+};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -99,30 +104,52 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
             constant_optimization(&mut context);
         }
 
-        if args.debug {
-            println!("{:?}", context.cfg);
-        }
-
+        // if args.debug {
+        //     println!("::ControlFlowGraph::\n{:?}", context.cfg);
+        // }
+        // context.cfg.clean();
         contexts.push(context);
     }
 
     let context = &mut contexts[0];
+    let mut ig: InterferenceGraph = InterferenceGraph::new();
     convert_from_ssa(context);
-    linear_scan_register_allocation(context);
+    if args.debug {
+        println!("::ControlFlowGraph::\n{:?}", context.cfg);
+    }
+    // convert_from_ssa(context);
+
+    // Figure out how to do analysis for non-ssa
+    liveness_analysis(context, &mut ig);
+    // println!("ig.edges: {:?}", ig.graph.edges);
+    // // println!("::InterferenceGraph::\n{:?}", ig);
+
+    register_alloc(context, &mut ig);
+    // println!("ig.colors: {:?}", ig.colors);
+    // println!("ig.edges: {:?}", ig.graph.edges);
+
+    for (operand, reg) in &ig.colors {
+        context
+            .cfg
+            .replace_all_operand_with(*operand, Operand::Register(*reg));
+    }
+
+    if args.debug {
+        // println!("::ControlFlowGraph::\n{:?}", context.cfg);
+        // println!("::InterferenceGraph::\n{:?}", ig);
+    }
 
     let compiled = compile_ir(context);
     if args.debug {
+        // println!("::Instruction Count:: {}", compiled.instructions.len());
         for instr in &compiled.instructions {
             println!("{:?}", instr);
         }
         print!("\n");
     }
 
-    
     let mut vm: VM = VM::new();
     vm.dispatch(&compiled)?;
-
-    // println!("\n{:?}", vm);
 
     Ok(())
 }

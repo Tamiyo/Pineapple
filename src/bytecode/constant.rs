@@ -16,7 +16,6 @@ use std::hash::Hash;
  *  disregard many runtime attributes and can be seen as
  *  a more barebones implmenetation.
  */
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Constant {
     Number(Distance),
@@ -139,7 +138,7 @@ impl Constant {
                     let f2 = Into::<f64>::into(n2);
                     Constant::Boolean(f1 >= f2)
                 }
-                _ => panic!(""),
+                (a, b) => panic!(format!("expected two numbers, got {:?} and {:?} instead", a, b)),
             },
             RelOp::Less => match (self, other) {
                 (Constant::Number(n1), Constant::Number(n2)) => {

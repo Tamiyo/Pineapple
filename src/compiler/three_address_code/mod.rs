@@ -113,6 +113,20 @@ impl Stmt {
         }
     }
 
+    pub fn replace_all_operand_use_with(&mut self, v: Operand, c: Operand) {
+        match self {
+            Stmt::Tac(_, rval) => {
+                rval.replace_operand_with(v, c);
+            }
+            Stmt::StackPush(target) => {
+                if *target == v {
+                    *target = c;
+                }
+            }
+            _ => (),
+        }
+    }
+
     pub fn replace_operand_with(&mut self, v: Operand, c: Operand) {
         match self {
             Stmt::Tac(_, rval) => rval.replace_operand_with(v, c),
@@ -342,7 +356,9 @@ impl fmt::Debug for Expr {
 pub enum Operand {
     Assignable(Value, Offset, IsVar),
     Constant(Constant),
-    Register(usize), // Special Operand used during compilation to bytecode
+    Register(usize),
+    StackLocation(Offset),
+    // Special Operand used during compilation to bytecode
     Return,
 }
 
@@ -369,6 +385,7 @@ impl fmt::Debug for Operand {
             Operand::Constant(c) => write!(f, "{}", c),
             Operand::Register(r) => write!(f, "${}", r),
             Operand::Return => write!(f, "_r"),
+            Operand::StackLocation(offset) => write!(f, "sp - {}", offset),
         }
     }
 }

@@ -21,6 +21,7 @@ pub enum Expr {
     Logical(Box<Expr>, RelOp, Box<Expr>),
     Grouping(Box<Expr>),
 }
+
 /**
  *  [AST Statement]
  *

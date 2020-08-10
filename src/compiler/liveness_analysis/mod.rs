@@ -1,59 +1,115 @@
-use crate::compiler::control_flow::ControlFlowContext;
-use crate::compiler::liveness_analysis::live_interval::compute_live_intervals;
-use crate::compiler::liveness_analysis::live_interval::Interval;
+use super::{
+    control_flow::ControlFlowContext,
+    three_address_code::{Expr, Stmt},
+};
+use crate::compiler::liveness_analysis::interference_graph::InterferenceGraph;
 use crate::compiler::three_address_code::Operand;
 
-use std::collections::HashMap;
+pub mod interference_graph;
+pub mod register_alloc;
 
-pub mod live_interval;
+// Appel p. 220 (Register Allocation)
+// Appel p. 428 (Inference Graph Construction)
 
-// https://en.wikipedia.org/wiki/Register_allocation
-/*
-    This could use some tuning. Linear Scan Register Allocation is
-    not ideal for a finished product, but for a "proof of concept"
-    intents and purposes its OK for now.
-*/
-pub fn linear_scan_register_allocation(context: &mut ControlFlowContext) {
-    let intervals = compute_live_intervals(&context);
-    let R: usize = 16; // Number of registers we have
+pub fn liveness_analysis(ctx: &ControlFlowContext, ig: &mut InterferenceGraph) {
+    let mut _in: Vec<Vec<Operand>> = vec![];
+    let mut _out: Vec<Vec<Operand>> = vec![];
 
-    let mut register: HashMap<(Operand, Interval), usize> = HashMap::new();
-    let mut registers: Vec<usize> = (0..R).rev().collect();
+    let mut _in_p: Vec<Vec<Operand>> = vec![];
+    let mut _out_p: Vec<Vec<Operand>> = vec![];
 
-    let mut active: Vec<(Operand, Interval)> = Vec::new();
+    let mut _use: Vec<Vec<Operand>> = vec![];
+    let mut _def: Vec<Vec<Operand>> = vec![];
 
-    for (operand, i) in intervals {
-        {
-            // ExpireOldInterval(J)
-            let mut marked: Vec<usize> = Vec::new();
-            for (ind, j) in active.iter().enumerate() {
-                if j.1.end >= i.start {
-                    break;
-                }
-                marked.push(ind);
-                let reg = register[&j];
-                registers.push(reg);
-            }
-            // Retain the values as specified in algorithm
-            let mut i: usize = 0;
-            active.retain(|_| {
-                i += 1;
-                marked.contains(&(i - 1))
-            })
-        }
-        if active.len() == R {
-            // SpillAtInterval(i)
-            {}
-        } else {
-            register.insert((operand, i), registers.pop().unwrap());
-            active.push((operand, i));
-            active.sort_by(|(_, a2), (_, b2)| a2.start.partial_cmp(&b2.start).unwrap());
-        }
+    for n in 0..ctx.cfg.blocks.len() {
+        _in.push(Vec::new());
+        _out.push(Vec::new());
+
+        _in_p.push(Vec::new());
+        _out_p.push(Vec::new());
+
+        _use.push(ctx.cfg.blocks[n].used());
+        _def.push(ctx.cfg.blocks[n].def());
     }
 
-    for ((operand, _), reg) in register.iter() {
-        context
-            .cfg
-            .replace_all_operand_with(*operand, Operand::Register(*reg))
+    let mut i = 0;
+
+    loop {
+        for n in 0..ctx.cfg.blocks.len() {
+            _in_p[n] = _in[n].clone();
+            _out_p[n] = _out[n].clone();
+
+            _out[n].clear();
+            for s in &ctx.cfg.graph.succ[&n] {
+                for y in &_in[*s] {
+                    if !_out[n].contains(y) {
+                        _out[n].push(*y);
+                    }
+                }
+            }
+
+            let mut diff = vec![];
+            for a in &_out[n] {
+                if !_def[n].contains(a) {
+                    diff.push(*a);
+                }
+            }
+            
+            // let union = _use[n].union(&diff).cloned().collect::<Vec<Operand>>();
+            let mut union = vec![];
+            for u in &_use[n] {
+                union.push(*u);
+            }
+
+            for d in &diff {
+                if !union.contains(d) {
+                    union.push(*d);
+                }
+            }
+
+            _in[n] = union;
+        }
+
+        let mut converged = true;
+        if _in != _in_p || _out != _out_p {
+            converged = false;
+        }
+
+        if converged {
+            println!("converged after '{:?}' iterations", i);
+            break;
+        }
+        i += 1;
+    }
+
+    // println!("in: {:?}\nout: {:?}", _in, _out);
+    construct_interference_graph(_out, _def, ctx, ig);
+}
+
+fn construct_interference_graph(
+    _out: Vec<Vec<Operand>>,
+    _def: Vec<Vec<Operand>>,
+    ctx: &ControlFlowContext,
+    ig: &mut InterferenceGraph,
+) {
+    for n in 0..ctx.cfg.blocks.len() {
+        for def in &_def[n] {
+            for temp in &_out[n] {
+                if def != temp {
+                    ig.graph.insert(*def);
+                    ig.graph.insert(*temp);
+
+                    if !ig.colors.contains_key(def) {
+                        ig.colors.insert(*def, 0);
+                    }
+
+                    if !ig.colors.contains_key(temp) {
+                        ig.colors.insert(*temp, 0);
+                    }
+
+                    ig.graph.add_edge(*def, *temp);
+                }
+            }
+        }
     }
 }

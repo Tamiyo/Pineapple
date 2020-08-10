@@ -1,7 +1,8 @@
 i = 1;
 j = 1;
 k = 0;
-while (false) {
+
+while (k < 100) {
     if(j < 20) {
         j = i;
         k = k + 1;

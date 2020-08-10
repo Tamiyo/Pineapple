@@ -31,6 +31,7 @@ pub struct ControlFlowGraph {
     pub blocks: Vec<BasicBlock>,
     pub statements: Vec<Rc<RefCell<Stmt>>>,
     pub graph: DirectedGraph<usize>,
+    pub orig_size: usize,
 }
 
 impl ControlFlowGraph {
@@ -92,9 +93,12 @@ impl ControlFlowGraph {
             }
         }
 
+        let orig_size = blocks.len();
+
         ControlFlowGraph {
             blocks,
             statements,
+            orig_size,
             graph,
         }
     }
@@ -123,6 +127,24 @@ impl ControlFlowGraph {
         statements
     }
 
+    pub fn get_statements_using_with_indices(&self, v: Operand) -> Vec<(usize, usize)> {
+        let mut statements: Vec<(usize, usize)> = vec![];
+
+        let mut i = 0;
+        for block in &self.blocks {
+            let mut j = 0;
+            for statement in &block.statements {
+                if statement.borrow().uses_var(v) {
+                    statements.push((i, j));
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+
+        statements
+    }
+
     pub fn get_variables(&self) -> Vec<Operand> {
         let mut variables: Vec<Operand> = vec![];
 
@@ -143,6 +165,16 @@ impl ControlFlowGraph {
         }
     }
 
+    pub fn replace_all_operand_use_with(&mut self, orig: Operand, new: Operand) {
+        for block in &mut self.blocks {
+            for statement in &mut block.statements {
+                statement
+                    .borrow_mut()
+                    .replace_all_operand_use_with(orig, new)
+            }
+        }
+    }
+
     pub fn remove_statement(&mut self, s: Rc<RefCell<Stmt>>) {
         for block in &mut self.blocks {
             let len = block.statements.len();
@@ -151,9 +183,6 @@ impl ControlFlowGraph {
                     block.remove_statement_at_index(i);
                     break;
                 }
-            }
-            if block.statements.len() < 3 {
-                block.statements.clear();
             }
         }
     }
@@ -218,9 +247,12 @@ impl fmt::Debug for ControlFlowGraph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let mut i = 0;
         for block in &self.blocks {
-            for statement in &block.statements {
-                write!(f, "{}:\t{:?}\n", i, *statement.borrow())?;
-                i += 1;
+            if block.statements.len() > 0 {
+                for statement in &block.statements {
+                    write!(f, "{}:\t{:?}\n", i, *statement.borrow())?;
+                    i += 1;
+                }
+                write!(f, "\n")?;
             }
         }
         write!(f, "{:?}", self.graph)?;

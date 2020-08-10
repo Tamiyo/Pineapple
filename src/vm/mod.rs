@@ -8,6 +8,8 @@ use crate::parser::relop::RelOp;
 
 mod natives;
 
+pub const NUM_REGISTERS: usize = 16;
+
 #[derive(Debug)]
 pub struct VM {
     /**
@@ -41,6 +43,8 @@ pub struct VM {
     ra: usize,
 
     stack: Vec<Constant>,
+
+    sp: usize,
 }
 
 impl VM {
@@ -53,9 +57,18 @@ impl VM {
         VM {
             ip: 0,
             fp: 0,
-            r: [Constant::None; 16],
+            r: [Constant::None; NUM_REGISTERS],
             ra: 0,
             stack: vec![],
+            sp: 0,
+        }
+    }
+
+    fn from_input_register(&self, ir: &IR) -> Constant {
+        match ir {
+            IR::REG(reg) => self.r[*reg],
+            IR::CONST(c) => *c,
+            IR::STACK(ptr) => self.stack[self.sp - *ptr],
         }
     }
 
@@ -75,38 +88,56 @@ impl VM {
             match instruction {
                 Instruction::LABEL(_) => (),
                 Instruction::MOV(or, ir) => {
-                    self.r[*or] = match ir {
-                        IR::REG(reg) => self.r[*reg],
-                        IR::CONST(c) => *c,
-                    };
+                    self.r[*or] = self.from_input_register(ir);
                 }
 
                 Instruction::ADD(or, ir1, ir2) => {
-                    let a = match ir1 {
-                        IR::REG(reg) => self.r[*reg],
-                        IR::CONST(c) => *c,
-                    };
-
-                    let b = match ir2 {
-                        IR::REG(reg) => self.r[*reg],
-                        IR::CONST(c) => *c,
-                    };
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
 
                     self.r[*or] = a.compute_binary(BinOp::Plus, b);
                 }
 
                 Instruction::NEQ(or, ir1, ir2) => {
-                    let a = match ir1 {
-                        IR::REG(reg) => self.r[*reg],
-                        IR::CONST(c) => *c,
-                    };
-
-                    let b = match ir2 {
-                        IR::REG(reg) => self.r[*reg],
-                        IR::CONST(c) => *c,
-                    };
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
 
                     self.r[*or] = a.compute_logical(RelOp::NotEqual, b);
+                }
+
+                Instruction::EQ(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    self.r[*or] = a.compute_logical(RelOp::EqualEqual, b);
+                }
+
+                Instruction::LT(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    self.r[*or] = a.compute_logical(RelOp::Less, b);
+                }
+
+                Instruction::LTE(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    self.r[*or] = a.compute_logical(RelOp::LessEqual, b);
+                }
+
+                Instruction::GT(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    self.r[*or] = a.compute_logical(RelOp::Greater, b);
+                }
+
+                Instruction::GTE(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    self.r[*or] = a.compute_logical(RelOp::GreaterEqual, b);
                 }
 
                 Instruction::JUMP(label) => {
@@ -114,10 +145,7 @@ impl VM {
                 }
 
                 Instruction::BT(ir, label) => {
-                    let res = match ir {
-                        IR::REG(reg) => self.r[*reg] == Constant::Boolean(true),
-                        IR::CONST(c) => *c == Constant::Boolean(true),
-                    };
+                    let res = self.from_input_register(ir) == Constant::Boolean(true);
 
                     if res {
                         self.ip = *label;
@@ -125,14 +153,8 @@ impl VM {
                 }
 
                 Instruction::PUSH(ir) => {
-                    match ir {
-                        IR::REG(reg) => {
-                            self.stack.push(self.r[*reg]);
-                        }
-                        IR::CONST(c) => {
-                            self.stack.push(*c);
-                        }
-                    };
+                    let res = self.from_input_register(ir);
+                    self.stack.push(res);
                 }
 
                 Instruction::CALL(intern, arity) => {
@@ -140,13 +162,19 @@ impl VM {
                     if name != "print" {
                         unimplemented!()
                     } else {
+                        let mut values = vec![];
                         for _ in 0..*arity {
                             let value = self
                                 .stack
                                 .pop()
                                 .expect("The stack should have a value here!");
+                            values.push(value);
+                        }
+
+                        for value in values.iter().rev() {
                             print!("{} ", value);
                         }
+
                         print!("\n");
                     }
                 }
