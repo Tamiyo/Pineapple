@@ -1,3 +1,5 @@
+## This file is purely a sanity check so I don't forget how I designed my grammar and serves no purpose in teh compiler
+
 declaration ::= classDecl
                 | funDecl
                 | statement

@@ -54,7 +54,7 @@ pub fn liveness_analysis(ctx: &ControlFlowContext, ig: &mut InterferenceGraph) {
                     diff.push(*a);
                 }
             }
-            
+
             // let union = _use[n].union(&diff).cloned().collect::<Vec<Operand>>();
             let mut union = vec![];
             for u in &_use[n] {
