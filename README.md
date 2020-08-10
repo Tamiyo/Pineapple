@@ -19,6 +19,8 @@ Pineapple build's off of my previous compiler project [Mango](https://github.com
 - [ ] Closures
 - [ ] Garbage Collector
 - [ ] Classes
+- [ ] Builtin Arrays
+- [ ] Builtin Dictionaries
 - [ ] Inheritence / Instancing
 
 # Example
