@@ -15,5 +15,5 @@ Runs test.pi and outputs the result (if any).
 ### cargo run test.pi -d 
 Runs test.pi in debug mode, outputs the result (if any), and outputs a bunch of debug compiler garbage.
 
-### cargo run test.pi -do
+### cargo run test.pi -d -o OR cargo run test.pi -do
 Runs test.pi in debug and optimization mode, which will run compiler optimizations, outputs a bunch of debug compiler garbage, and outputs the result (if any).
