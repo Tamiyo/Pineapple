@@ -13,7 +13,7 @@ Pineapple build's off of my previous compiler project [Mango](https://github.com
 Runs test.pi and outputs the result (if any).
 
 ### cargo run test.pi -d 
-Runs test.pi in debug mode, which outprints a bunch of compiler garbage at the moment.
+Runs test.pi in debug mode, outputs the result (if any), and outputs a bunch of debug compiler garbage.
 
-### cargo run test.pi -do
-Runs test.pi in debug and optimization mode, which will run compiler optimizations on the code.
+### cargo run test.pi -d -o OR cargo run test.pi -do
+Runs test.pi in debug and optimization mode, which will run compiler optimizations, outputs a bunch of debug compiler garbage, and outputs the result (if any).
