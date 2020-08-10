@@ -8,7 +8,9 @@ Instead of using LLVM or other IRs, Pineapple is my attempt to write all of thes
 
 Pineapple build's off of my previous compiler project [Mango](https://github.com/Tamiyo/Mango), a stack based virtual machine also written in  Rust.
 
-## Example
+# Example
+_Instead of using cargo you can use the precompiled pineapple executable, though it may not be up to date._
+
 ### cargo run test.pi 
 Runs test.pi and outputs the result (if any).
 
