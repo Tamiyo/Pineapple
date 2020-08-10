@@ -9,6 +9,7 @@ Instead of using LLVM or other IRs, Pineapple is my attempt to write all of thes
 Pineapple build's off of my previous compiler project [Mango](https://github.com/Tamiyo/Mango), a stack based virtual machine also written in  Rust.
 
 ### Feature Checklist
+_This includes support for, but not necessarily the implementation of sed features. Will make a Trello Board soon that will be more accurate._ 
 - [x] Basic Arithmetic / Conditionals
 - [x] Variable Assignment
 - [x] Print Function
