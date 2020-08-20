@@ -30,12 +30,12 @@ impl fmt::Display for ParseError {
             ParseError::UnexpectedInfixOperator(found) => {
                 let line = found.line;
                 let col = found.col;
-                write!(f, "At {}:{}. Expected an infix operator while parsing but instead found: `{:?}`.", line, col, found)
+                write!(f, "At {}:{}. Expected a infix operator while parsing but instead found: `{:?}`.", line, col, found)
             }
             ParseError::UnexpectedPrefixOperator(found) => {
                 let line = found.line;
                 let col = found.col;
-                write!(f, "At {}:{}. Expected an prefix operator while parsing but instead found: `{:?}`.", line, col, found)
+                write!(f, "At {}:{}. Expected a prefix operator while parsing but instead found: `{:?}`.", line, col, found)
             }
             ParseError::ExpectedIdentifier(found) => {
                 let line = found.line;

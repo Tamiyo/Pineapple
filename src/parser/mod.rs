@@ -388,7 +388,9 @@ impl Parser {
 
         fn prefix(parser: &mut Parser) -> Result<Expr, ParseError> {
             match **parser.peek()? {
-                Symbol::Number(_) | Symbol::Identifier(_) => parser.parse_primary(),
+                Symbol::Number(_) 
+                | Symbol::Identifier(_)
+                | Symbol::String(_) => parser.parse_primary(),
                 Symbol::True => {
                     parser.next()?;
                     Ok(Expr::Boolean(true))
@@ -507,6 +509,10 @@ impl Parser {
             Symbol::Identifier(identifier) => {
                 let intern = intern_string(identifier);
                 Ok(Expr::Variable(intern))
+            }
+            Symbol::String(str) => {
+                let intern = intern_string(str);
+                Ok(Expr::String(intern))
             }
             _ => Err(ParseError::ExpectedLiteral(token)),
         }

@@ -3,7 +3,7 @@ use crate::parser::tokens::Token;
 
 use std::fmt;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum RelOp {
     NotEqual,
     EqualEqual,

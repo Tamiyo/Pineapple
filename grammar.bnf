@@ -1,4 +1,5 @@
-## This file is purely a sanity check so I don't forget how I designed my grammar and serves no purpose in teh compiler
+## This file is purely a sanity check so I don't forget how I designed my grammar and serves no purpose in the compiler
+## This file is subject to change at the author's whim
 
 declaration ::= classDecl
                 | funDecl

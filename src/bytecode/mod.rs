@@ -3,49 +3,33 @@ use crate::bytecode::constant::Constant;
 pub mod constant;
 pub mod distance;
 pub mod string_intern;
-
-/**
- *  [Instruction]
- *
- *  Instructions are the set of possible operations that
- *  the virtual machine can perform to run a program.
- */
-
-//
-pub type OR = usize;
+pub mod constant_pool;
 
 type Label = usize;
 type InternIndex = usize;
 type Arity = usize;
 type StackOffset = usize;
+type RegisterIndex = usize;
+
+#[derive(Debug, Copy, Clone)]
+pub enum OR {
+    REG(RegisterIndex),
+    STACK(StackOffset),
+}
 
 #[derive(Debug, Copy, Clone)]
 pub enum IR {
-    REG(usize),
+    REG(RegisterIndex),
     CONST(Constant),
     STACK(StackOffset),
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum Instruction {
+pub enum OpCode {
     LABEL(Label),
 
-    /**
-     *  [Load Constant]
-     *  C = CONSTANT
-     *
-     *  Translates to:  LOAD C R[k]
-     *  Semantically:   R[k] = C
-     */
-    // LOAD(OR),
     MOV(OR, IR),
 
-    /**
-     *  [Addition]
-     *  
-     *  Translates to:  ADD R[k] R[i] R[j]
-     *  Semantically:   R[k] = R[i] + R[j]
-     */
     ADD(OR, IR, IR),
     // SUB(OR, IR, IR),
     // MUL(OR, IR, IR),
@@ -54,11 +38,10 @@ pub enum Instruction {
     // POW(OR, IR, IR),
     // AND(OR, IR, IR),
     // OR(OR, IR, IR),
-    LT(OR, IR, IR),
-    LTE(OR, IR, IR),
-    GT(OR, IR, IR),
-    GTE(OR, IR, IR),
-
+    // LT(OR, IR, IR),
+    // LTE(OR, IR, IR),
+    // GT(OR, IR, IR),
+    // GTE(OR, IR, IR),
     EQ(OR, IR, IR),
     NEQ(OR, IR, IR),
 
@@ -69,15 +52,10 @@ pub enum Instruction {
     // POPA
     JUMP(Label),
 
-    // Branch if true
-    BT(IR, Label),
+    BT(IR, Label),    // Branch if true
+    BF(IR, Label), // Banch if false
 
-    CALL(InternIndex, Arity),
+    CALL(InternIndex, Arity), // Function call
 
-    /**
-     *  [Halt]
-     *
-     *  Halts the VM's execution at the current instruction.
-     */
     HLT,
 }

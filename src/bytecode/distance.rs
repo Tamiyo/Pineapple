@@ -1,9 +1,9 @@
-/// Since I am trying some performance optimizations in the compiler, I need to hash
-/// constants.
-///
 /// Rust prevents me from hashing floats directly, so I've defined the Distance
 /// struct to convert each float into it's integer form.
 ///
+/// TODO :- Look into if this is actually efficient.
+///         It is lazy tho :)
+/// 
 /// See https://stackoverflow.com/questions/39638363/how-can-i-use-a-hashmap-with-f64-as-key-in-rust
 use std::cmp;
 use std::ops;

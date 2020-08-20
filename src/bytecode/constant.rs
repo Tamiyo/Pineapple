@@ -1,4 +1,6 @@
 use crate::bytecode::distance::Distance;
+use crate::bytecode::string_intern::get_string;
+use crate::bytecode::string_intern::intern_string;
 use crate::parser::binop::BinOp;
 use crate::parser::relop::RelOp;
 
@@ -19,26 +21,9 @@ use std::hash::Hash;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Constant {
     Number(Distance),
-    Identifier(usize),
+    String(usize),
     Boolean(bool),
     None,
-}
-
-impl fmt::Display for Constant {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Constant::Number(float) => write!(f, "{}", Into::<f64>::into(float)),
-            Constant::Identifier(identifier) => write!(f, "{}", *identifier),
-            Constant::Boolean(b) => {
-                if *b {
-                    write!(f, "true")
-                } else {
-                    write!(f, "false")
-                }
-            }
-            Constant::None => write!(f, "None"),
-        }
-    }
 }
 
 impl Constant {
@@ -58,7 +43,15 @@ impl Constant {
                     let f2 = Into::<f64>::into(n2);
                     Constant::Number(Distance::from(f1 + f2))
                 }
-                _ => panic!(""),
+                (Constant::String(n1), Constant::String(n2)) => {
+                    let mut s1 = get_string(*n1);
+                    let s2 = get_string(n2);
+                    s1.push_str(s2.as_str());
+
+                    let interned = intern_string(s1);
+                    Constant::String(interned)
+                }
+                _ => panic!(format!("PLUS NOT DEFINED FOR {:?} AND {:?}", self, other)),
             },
             BinOp::Minus => match (self, other) {
                 (Constant::Number(n1), Constant::Number(n2)) => {
@@ -97,6 +90,18 @@ impl Constant {
                     let f1 = Into::<f64>::into(n1);
                     let f2 = Into::<f64>::into(n2);
                     Constant::Number(Distance::from(f1 * f2))
+                }
+                (Constant::String(n1), Constant::Number(n2)) => {
+                    let s1 = get_string(*n1);
+                    let f2 = Into::<f64>::into(n2) as u64;
+
+                    let mut s3 = String::new();
+                    for _ in 0..f2 {
+                        s3.push_str(s1.as_str());
+                    }
+
+                    let interned = intern_string(s3);
+                    Constant::String(interned)
                 }
                 _ => panic!(""),
             },
@@ -138,7 +143,10 @@ impl Constant {
                     let f2 = Into::<f64>::into(n2);
                     Constant::Boolean(f1 >= f2)
                 }
-                (a, b) => panic!(format!("expected two numbers, got {:?} and {:?} instead", a, b)),
+                (a, b) => panic!(format!(
+                    "expected two numbers, got {:?} and {:?} instead",
+                    a, b
+                )),
             },
             RelOp::Less => match (self, other) {
                 (Constant::Number(n1), Constant::Number(n2)) => {
@@ -156,6 +164,23 @@ impl Constant {
                 }
                 _ => panic!(""),
             },
+        }
+    }
+}
+
+impl fmt::Display for Constant {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Constant::Number(float) => write!(f, "{}", Into::<f64>::into(float)),
+            Constant::String(s) => write!(f, "{}", get_string(*s)),
+            Constant::Boolean(b) => {
+                if *b {
+                    write!(f, "true")
+                } else {
+                    write!(f, "false")
+                }
+            }
+            Constant::None => write!(f, "None"),
         }
     }
 }

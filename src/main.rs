@@ -3,9 +3,11 @@ use crate::cli::parse_cli;
 mod bytecode;
 mod cli;
 mod compiler;
-mod graph;
 mod parser;
-mod vm;
+mod util;
+
+#[macro_use]
+extern crate derive_new;
 
 fn main() {
     match parse_cli() {

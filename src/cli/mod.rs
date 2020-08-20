@@ -1,20 +1,7 @@
-use crate::compiler::compile_ir;
-use crate::compiler::control_flow::ControlFlowContext;
-use crate::compiler::dominator::algorithm::compute_dominators;
-use crate::compiler::liveness_analysis::interference_graph::InterferenceGraph;
-use crate::compiler::liveness_analysis::liveness_analysis;
-use crate::compiler::liveness_analysis::register_alloc::register_alloc;
-use crate::compiler::optimization::constant_optimization::constant_optimization;
-use crate::compiler::optimization::dead_code::dead_code_elimination;
-use crate::compiler::ssa::convert_from_ssa;
-use crate::compiler::ssa::convert_vars_to_ssa;
-use crate::compiler::ssa::edge_split;
-use crate::compiler::ssa::insert_phi_functions;
 use crate::{
-    compiler::three_address_code::{translate::translate_to_tac_ir, Operand},
-    vm::VM,
+    compiler::{flowgraph::cfg::CFG, transformer::linearcode::LinearCodeTransformer},
+    parser::{scanner::Scanner, Parser},
 };
-
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -68,9 +55,6 @@ pub fn parse_cli() -> Result<(), Box<dyn std::error::Error>> {
  *
  */
 fn build(buf: &str, args: Cli) -> Result<(), String> {
-    use crate::parser::scanner::Scanner;
-    use crate::parser::Parser;
-
     let mut scanner = Scanner::new(buf);
     let tokens = match scanner.tokenize() {
         Ok(t) => t,
@@ -88,68 +72,31 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
         }
     };
 
-    let statements = translate_to_tac_ir(ast);
+    let mut lcs = LinearCodeTransformer::new();
+    let linear_code_blocks = lcs.translate(ast);
 
-    let mut contexts: Vec<ControlFlowContext> = vec![];
-    for func in statements {
-        let mut context = ControlFlowContext::new(func);
+    for linear_code in linear_code_blocks {
+        let mut cfg = CFG::new();
+        cfg.generate_from_linear_code(&linear_code);
+        cfg.compute_dom();
+        cfg.compute_idom();
+        cfg.compute_domf();
 
-        compute_dominators(&mut context);
-        insert_phi_functions(&mut context);
-        convert_vars_to_ssa(&mut context);
-        edge_split(&mut context);
+        cfg.insert_phi_functions();
+        cfg.construct_ssa();
 
-        if args.optimize {
-            dead_code_elimination(&mut context);
-            constant_optimization(&mut context);
+        if args.debug {
+            println!("::Construct SSA::");
+            println!("{:?}", cfg);
         }
 
-        // if args.debug {
-        //     println!("::ControlFlowGraph::\n{:?}", context.cfg);
-        // }
-        // context.cfg.clean();
-        contexts.push(context);
-    }
+        cfg.destruct_ssa();
 
-    let context = &mut contexts[0];
-    let mut ig: InterferenceGraph = InterferenceGraph::new();
-    convert_from_ssa(context);
-    if args.debug {
-        println!("::ControlFlowGraph::\n{:?}", context.cfg);
-    }
-    // convert_from_ssa(context);
-
-    // Figure out how to do analysis for non-ssa
-    liveness_analysis(context, &mut ig);
-    // println!("ig.edges: {:?}", ig.graph.edges);
-    // // println!("::InterferenceGraph::\n{:?}", ig);
-
-    register_alloc(context, &mut ig);
-    // println!("ig.colors: {:?}", ig.colors);
-    // println!("ig.edges: {:?}", ig.graph.edges);
-
-    for (operand, reg) in &ig.colors {
-        context
-            .cfg
-            .replace_all_operand_with(*operand, Operand::Register(*reg));
-    }
-
-    if args.debug {
-        // println!("::ControlFlowGraph::\n{:?}", context.cfg);
-        // println!("::InterferenceGraph::\n{:?}", ig);
-    }
-
-    let compiled = compile_ir(context);
-    if args.debug {
-        println!("::Instruction Count:: {}", compiled.instructions.len());
-        for instr in &compiled.instructions {
-            println!("{:?}", instr);
+        if args.debug {
+            println!("::Destruct SSA::");
+            println!("{:?}", cfg);
         }
-        print!("\n");
     }
-
-    let mut vm: VM = VM::new();
-    vm.dispatch(&compiled)?;
 
     Ok(())
 }

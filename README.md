@@ -8,29 +8,5 @@ Instead of using LLVM or other IRs, Pineapple is my attempt to write all of thes
 
 Pineapple build's off of my previous compiler project [Mango](https://github.com/Tamiyo/Mango), a stack based virtual machine also written in  Rust.
 
-### Feature Checklist
-- [x] Basic Arithmetic / Conditionals
-- [x] Variable Assignment
-- [x] Print Function
-- [x] If / Elif / Else Statement
-- [x] While Loop
-- [ ] For Loop
-- [ ] Functions
-- [ ] Closures
-- [ ] Garbage Collector
-- [ ] Classes
-- [ ] Builtin Arrays
-- [ ] Builtin Dictionaries
-- [ ] Inheritence / Instancing
-
-# Example
-_Instead of using cargo you can use the precompiled pineapple executable, though it may not be up to date._
-
-### cargo run test.pi 
-Runs test.pi and outputs the result (if any).
-
-### cargo run test.pi -d 
-Runs test.pi in debug mode, outputs the result (if any), and outputs a bunch of debug compiler garbage.
-
-### cargo run test.pi -d -o OR cargo run test.pi -do
-Runs test.pi in debug and optimization mode, which will run compiler optimizations, outputs a bunch of debug compiler garbage, and outputs the result (if any).
+# Project Restructuring
+At this point in time the compiler doesn't have a stable release state and it is subject to change at any time. I'm constantly refactoring the compiler to improve code quality and performance.

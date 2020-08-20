@@ -1,5 +1,5 @@
 [package]
-name = "pine"
+name = "pineapple"
 version = "0.1.0"
 authors = ["Tamiyo <matthewgmcmillian@gmail.com>"]
 edition = "2018"
@@ -7,3 +7,6 @@ edition = "2018"
 [dependencies]
 structopt = "0.3"
 lazy_static = "1.4.0"
+derive-new = "0.5.8"
+derive_more = "0.99.9"
+indexmap = "1.5.1"

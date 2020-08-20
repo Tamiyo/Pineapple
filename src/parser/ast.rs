@@ -13,6 +13,7 @@ type Interned = usize;
 #[derive(Debug, Clone)]
 pub enum Expr {
     Number(Distance),
+    String(Interned),
     Boolean(bool),
     Variable(Interned),
     Assign(Interned, Box<Expr>),
