@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="d31076c1-ee6e-4847-9492-ae0cc666a18c" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/pine.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/cli/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/cli/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/flowgraph/cfg.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/flowgraph/cfg.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/ir/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/ir/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/optimizer/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/optimizer/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/transformer/linearcode.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/transformer/linearcode.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/util/graph.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/util/graph.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/util/tree.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/util/tree.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.pi" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_if.pi" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="775663ld" />
+  </component>
+  <component name="ProjectId" id="1gfDDYV4Q8biuqDDhczrCiCh11f" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="org.rust.cargo.project.model.PROJECT_DISCOVERY" value="true" />
+    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+    <option name="version" value="2" />
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="d31076c1-ee6e-4847-9492-ae0cc666a18c" name="Default Changelist" comment="" />
+      <created>1598496643609</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1598496643609</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="640" y="256" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog" timestamp="1598633155464">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="640" y="256" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog/0.0.1920.1040/-1920.0.1920.1040/1920.0.1920.1040@0.0.1920.1040" timestamp="1598633155464" />
+    <state x="802" y="111" key="SettingsEditor" timestamp="1598634457584">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="802" y="111" key="SettingsEditor/0.0.1920.1040/-1920.0.1920.1040/1920.0.1920.1040@0.0.1920.1040" timestamp="1598634457584" />
+    <state x="667" y="119" width="585" height="801" key="find.popup" timestamp="1598636488423">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="667" y="119" width="585" height="801" key="find.popup/0.0.1920.1040/-1920.0.1920.1040/1920.0.1920.1040@0.0.1920.1040" timestamp="1598636488423" />
+  </component>
+</project>

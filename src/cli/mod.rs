@@ -1,6 +1,14 @@
+use crate::compiler::compile_ir;
+use crate::compiler::ir::ssa::construct_ssa;
+use crate::compiler::ir::ssa::destruct_ssa;
+use crate::compiler::register_allocation::register_allocation;
 use crate::{
-    compiler::{flowgraph::cfg::CFG, transformer::linearcode::LinearCodeTransformer},
+    compiler::{
+        dominator::compute_dominator_context, flowgraph::cfg::CFG,
+        transformer::linearcode::LinearCodeTransformer,
+    },
     parser::{scanner::Scanner, Parser},
+    vm::VM,
 };
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -20,6 +28,9 @@ use structopt::StructOpt;
 pub struct Cli {
     #[structopt(short, long)]
     pub debug: bool,
+
+    #[structopt(short, long)]
+    pub verbose: bool,
 
     #[structopt(short = "o", long = "optimize")]
     pub optimize: bool,
@@ -76,26 +87,36 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     let linear_code_blocks = lcs.translate(ast);
 
     for linear_code in linear_code_blocks {
-        let mut cfg = CFG::new();
-        cfg.generate_from_linear_code(&linear_code);
-        cfg.compute_dom();
-        cfg.compute_idom();
-        cfg.compute_domf();
+        let mut cfg = CFG::from(&linear_code);
 
-        cfg.insert_phi_functions();
-        cfg.construct_ssa();
+        compute_dominator_context(&mut cfg);
+        construct_ssa(&mut cfg);
 
         if args.debug {
-            println!("::Construct SSA::");
-            println!("{:?}", cfg);
+            println!("::CFG::");
+            println!("{}", cfg);
         }
 
-        cfg.destruct_ssa();
+        destruct_ssa(&mut cfg);
+
+        // if args.debug {
+        //     println!("::CFG::");
+        //     println!("{}", cfg);
+        // }
+
+        register_allocation(&mut cfg);
 
         if args.debug {
-            println!("::Destruct SSA::");
-            println!("{:?}", cfg);
+            println!("::CFG::");
+            println!("{}", cfg);
         }
+        let compiler_context = compile_ir(&mut cfg);
+
+        let mut vm = VM::new();
+        match vm.dispatch(&compiler_context) {
+            Ok(()) => (),
+            Err(e) => panic!(e),
+        };
     }
 
     Ok(())

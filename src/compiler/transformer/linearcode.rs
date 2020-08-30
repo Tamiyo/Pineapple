@@ -1,3 +1,4 @@
+use crate::bytecode::string_intern::intern_string;
 use crate::parser::binop::BinOp;
 use crate::parser::relop::RelOp;
 use crate::{
@@ -105,9 +106,12 @@ impl LinearCodeTransformer {
         }
 
         if !self.block.is_empty() {
-            let block = self.block.clone();
-            self.statements.push(block);
+            // if let Stmt::Jump(j) = self.block.last().unwrap() {
+            //     self.block.push(Stmt::Label(*j));
+            // }
         }
+        let block = self.block.clone();
+        self.statements.push(block);
 
         let size = self.statements.len();
         for i in 0..size {
@@ -133,6 +137,9 @@ impl LinearCodeTransformer {
             ast::Stmt::While(ref cond, ref block) => {
                 self.translate_while_statement(cond, block);
             }
+            ast::Stmt::Print(args) => {
+                self.translate_print_statement(args);
+            }
             _ => unimplemented!(),
         }
     }
@@ -143,34 +150,32 @@ impl LinearCodeTransformer {
         block: &ast::Stmt,
         other: &Option<Box<ast::Stmt>>,
     ) {
-        let label = self.new_label();
-        let possible_label = self.new_label();
-
-        let nlast = self.block.last().unwrap();
-        match nlast {
-            Stmt::Label(_) => (),
-            _ => {
-                self.block.push(Stmt::Label(possible_label));
-            }
-        }
-
+        // Translate the condition
+        let jump_if_label = self.new_label();
         let cond = Expr::Oper(self.translate_expression(cond, true));
-        let cjump = Stmt::CJump(cond, label);
-
+        let cjump = Stmt::CJump(cond, jump_if_label);
         self.block.push(cjump);
-        let label2 = self.new_label();
-        self.block.push(Stmt::Label(label2));
 
+        // Setup a new "label" for the inner block, which shouldn't have a goto
+        let next_block_label = self.new_label();
+        self.block.push(Stmt::Label(next_block_label));
+
+        // Translate the body
         self.translate_statement(block);
 
+        // If the "other" node is another if statement
         if let Some(stmt) = other {
-            let jump = Stmt::Jump(label);
-
+            let jump = Stmt::Jump(jump_if_label); // This will get backpatched later
             self.backpatch.push(self.block.len());
             self.block.push(jump);
-            self.block.push(Stmt::Label(label));
 
+            // This is the label of the "new" node
+            self.block.push(Stmt::Label(jump_if_label));
+
+            // Translate the other
             self.translate_statement(stmt);
+
+            // If we are done with if statements, begin backpatching
             match **stmt {
                 ast::Stmt::If(_, _, _) => {}
                 _ => {
@@ -188,28 +193,36 @@ impl LinearCodeTransformer {
     }
 
     fn translate_while_statement(&mut self, cond: &ast::Expr, block: &ast::Stmt) {
-        let label = self.new_label();
-        let nlast = self.block.last().unwrap();
-        match nlast {
-            Stmt::CJump(_, _) | Stmt::Jump(_) => self.block.push(Stmt::Label(label)),
-            _ => {
-                self.block.push(Stmt::Jump(label));
-                self.block.push(Stmt::Label(label))
-            }
-        }
+        // Before setting up the block we isolate the condition
+        let loop_label = self.new_label();
+        self.block.push(Stmt::Jump(loop_label));
+        self.block.push(Stmt::Label(loop_label));
 
+        // Translate the condition
+        let jump_if_label = self.new_label();
         let cond = Expr::Oper(self.translate_expression(cond, true));
-        let end_label = self.new_label();
-
-        let cjump = Stmt::CJump(cond, end_label);
-
+        let cjump = Stmt::CJump(cond, jump_if_label);
         self.block.push(cjump);
+
+        // Dummy label fo the next block
+        let dummy_label = self.new_label();
+
+        // Setup a label that we can wrap back to
+        self.block.push(Stmt::Label(dummy_label));
+
         self.translate_statement(block);
+        self.block.push(Stmt::Jump(loop_label));
+        self.block.push(Stmt::Label(jump_if_label));
+    }
 
-        let jump = Stmt::Jump(label);
-
-        self.block.push(jump);
-        self.block.push(Stmt::Label(end_label));
+    fn translate_print_statement(&mut self, args: &[ast::Expr]) {
+        let name = intern_string("print".to_string());
+        for arg in args {
+            let operand = self.translate_expression(arg, false);
+            self.block.push(Stmt::StackPush(operand));
+        }
+        let call = Stmt::Call(name, args.len());
+        self.block.push(call);
     }
 
     fn translate_expression(&mut self, expr: &ast::Expr, is_cond: bool) -> Oper {

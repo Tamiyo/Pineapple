@@ -2,3 +2,5 @@ z = 3;
 x = z + 1;
 y = z + x + 4;
 g = z + y + x;
+
+print(g);
