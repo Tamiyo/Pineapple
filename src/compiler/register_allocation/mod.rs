@@ -19,6 +19,7 @@ impl fmt::Debug for Interval {
     }
 }
 
+// Ah good ol' linear search!
 fn compute_live_intervals(cfg: &CFG) -> Vec<Interval> {
     let mut intervals: HashMap<Oper, Interval> = HashMap::new();
 
@@ -78,54 +79,58 @@ fn new_stack_loc() -> usize {
     }
 }
 
-fn expire_old_intervals(i: &Interval, state: &mut AllocState) {
-    state
-        .active
-        .sort_by(|a, b| a.end.partial_cmp(&b.end).unwrap());
-
-    let mut to_remove = vec![];
-    for (index, j) in state.active.iter().enumerate() {
-        if j.end >= i.start {
-            return;
-        } else {
-            to_remove.push(index);
-        }
-    }
-
-    for to_r in &to_remove {
-        let oper = &state.active[*to_r].oper;
-        let reg = *state.register.get(oper).unwrap();
-        state.registers.insert(reg);
-    }
-
-    state.active = state
-        .active
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| !to_remove.contains(i))
-        .map(|(_, i)| i.clone())
-        .collect();
-}
-
-fn spill_at_interval(i: &Interval, state: &mut AllocState) {
-    let spill = state.active.last().unwrap();
-
-    if spill.end > i.end {
-        let spilled = state.register.get(&spill.oper).unwrap();
-        state.register.insert(i.oper, *spilled);
-        state.register.remove(&spill.oper);
-        state.location.insert(spill.oper, 0);
-        state.active.pop();
-        state.active.push(*i);
+// As much as I like the simplicity of the vanilla linear scan register alloc algo,
+// it's pretty cheeks. Theres a better version of this but the literature looks confusing.
+// This works for now but I should look into moving toward the better linear scan algo or go
+// with a form of graph coloring w/ an interference graph.
+fn linear_scan_register_allocation(cfg: &CFG) -> AllocState {
+    fn expire_old_intervals(i: &Interval, state: &mut AllocState) {
         state
             .active
             .sort_by(|a, b| a.end.partial_cmp(&b.end).unwrap());
-    } else {
-        state.location.insert(i.oper, 0);
-    }
-}
 
-fn linear_scan_register_allocation(cfg: &CFG) -> AllocState {
+        let mut to_remove = vec![];
+        for (index, j) in state.active.iter().enumerate() {
+            if j.end >= i.start {
+                return;
+            } else {
+                to_remove.push(index);
+            }
+        }
+
+        for to_r in &to_remove {
+            let oper = &state.active[*to_r].oper;
+            let reg = *state.register.get(oper).unwrap();
+            state.registers.insert(reg);
+        }
+
+        state.active = state
+            .active
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !to_remove.contains(i))
+            .map(|(_, i)| i.clone())
+            .collect();
+    }
+
+    fn spill_at_interval(i: &Interval, state: &mut AllocState) {
+        let spill = state.active.last().unwrap();
+
+        if spill.end > i.end {
+            let spilled = state.register.get(&spill.oper).unwrap();
+            state.register.insert(i.oper, *spilled);
+            state.register.remove(&spill.oper);
+            state.location.insert(spill.oper, 0);
+            state.active.pop();
+            state.active.push(*i);
+            state
+                .active
+                .sort_by(|a, b| a.end.partial_cmp(&b.end).unwrap());
+        } else {
+            state.location.insert(i.oper, 0);
+        }
+    }
+
     let mut intervals = compute_live_intervals(cfg);
     // println!("intervals: {:#?}", intervals);
     intervals.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap());
@@ -155,11 +160,10 @@ fn linear_scan_register_allocation(cfg: &CFG) -> AllocState {
 pub fn register_allocation(cfg: &mut CFG) {
     let mut state = linear_scan_register_allocation(cfg);
 
-    // println!("{:?}", state.register);
-    // println!("{:?}", state.location);
-
     for (oper, reg) in state.register {
         let register = Oper::Register(reg);
+
+        // This line may not be needed, investigate.
         state.location.remove(&oper);
         cfg.replace_all_operand_with(&oper, &register);
     }

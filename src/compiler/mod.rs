@@ -13,6 +13,9 @@ use crate::{
 use ir::{Expr, Oper, Stmt};
 use std::collections::HashMap;
 
+// This is interesting. Coming from mango where we didnt compile machine code / tac this processes was very
+// different. This will probably change once I implement scores and/or closures. I'll be honest I don't like
+// closures very much in an imperative langauge but meh it might be an interesting challenge.
 pub struct CompilerContext {
     pub instructions: Vec<OpCode>,
     pub labels: HashMap<usize, usize>,
@@ -61,9 +64,10 @@ pub fn compile_ir(cfg: &CFG) -> CompilerContext {
                     Oper::Register(r) => IR::REG(*r),
                     Oper::Constant(c) => IR::CONST(*c),
                     Oper::StackLocation(s) => {
-                        compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
+                        compiler_context.stack_offset =
+                            usize::max(compiler_context.stack_offset, *s);
                         IR::STACK(*s)
-                    },
+                    }
                     _ => panic!("Unexpected Register"),
                 };
 
@@ -87,7 +91,7 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr)
         Oper::StackLocation(s) => {
             compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
             OR::STACK(*s)
-        },
+        }
         _ => panic!("Expected a register as output!"),
     };
 
@@ -99,7 +103,7 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr)
                 Oper::StackLocation(s) => {
                     compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
                     IR::STACK(*s)
-                },
+                }
                 _ => panic!("Unexpected Register"),
             };
 
@@ -109,7 +113,7 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr)
                 Oper::StackLocation(s) => {
                     compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
                     IR::STACK(*s)
-                },
+                }
                 _ => panic!("Unexpected Register"),
             };
 
@@ -127,7 +131,7 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr)
                 Oper::StackLocation(s) => {
                     compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
                     IR::STACK(*s)
-                },
+                }
                 _ => panic!("Unexpected Register"),
             };
 
@@ -137,7 +141,7 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr)
                 Oper::StackLocation(s) => {
                     compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
                     IR::STACK(*s)
-                },
+                }
                 _ => panic!("Unexpected Register"),
             };
 
@@ -164,7 +168,7 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr)
                 Oper::StackLocation(s) => {
                     compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
                     IR::STACK(*s)
-                },
+                }
                 _ => panic!("Unexpected Register!"),
             };
             compiler_context

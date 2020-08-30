@@ -7,6 +7,12 @@ use crate::{
 
 pub const NUM_REGISTERS: usize = 16;
 
+// I told someone I was making a VM and they wanted to try to run it in VirtualBox.
+// I told them it wasn't that kind of VM but they gave me a funny look so I just went with it.
+// Turns out you cant run this VM in VirtualBox (go figure).
+// Now that person just thinks I'm a bad vm programmer. Thats probably not true. Probably.
+
+// We're going to try to emulate a CISC approach, but this may change as time goes on.
 #[derive(Debug)]
 pub struct VM {
     /**
@@ -65,9 +71,7 @@ impl VM {
         let constant = self.from_input_register(ir);
         match or {
             OR::REG(or) => self.r[*or] = constant,
-            OR::STACK(ptr) => {
-                self.stack[self.sp - *ptr] = constant
-            }
+            OR::STACK(ptr) => self.stack[self.sp - *ptr] = constant,
             _ => unimplemented!(),
         }
     }
@@ -87,6 +91,11 @@ impl VM {
         }
     }
 
+    fn stack_push(&mut self, value: Constant) {
+        self.stack.push(value);
+        self.sp += 1;
+    }
+
     /**
      *  Dispatches the current instruction, executing the specified
      *  virtual machine operations that align with each instruction.
@@ -96,15 +105,15 @@ impl VM {
      *      Err(e) : An error occured at some stage of execution.
      */
     pub fn dispatch(&mut self, compiler_context: &CompilerContext) -> Result<(), String> {
+
+        // Reserve space on the stack for overflow'd variables or something
         for _ in 0..(compiler_context.stack_offset + 1) {
-            self.stack.push(Constant::None);
-            self.sp += 1;
+            self.stack_push(Constant::None);
         }
 
         let instructions = &compiler_context.instructions;
         loop {
             let instruction = &instructions[self.ip];
-            // println!("instr: {:?}", instruction);
 
             match instruction {
                 OpCode::LABEL(_) => (),
@@ -182,8 +191,7 @@ impl VM {
 
                 OpCode::PUSH(ir) => {
                     let res = self.from_input_register(ir);
-                    self.stack.push(res);
-                    self.sp += 1;
+                    self.stack_push(res);
                 }
 
                 OpCode::CALL(intern, arity) => {

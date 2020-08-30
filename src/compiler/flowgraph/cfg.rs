@@ -86,7 +86,8 @@ pub struct CFG {
     pub def: HashMap<Oper, HashSet<StatementIndex>>,
 
     // Dominators
-    pub dom_ctx: DominatorContext,
+    pub dom_ctx: DominatorContext
+    ,
     // Dataflow Analysis
     // http://www.cs.cmu.edu/afs/cs/academic/class/15745-s06/web/handouts/04.pdf
 }
@@ -114,12 +115,12 @@ impl CFG {
     }
 
     pub fn replace_all_operand_with(&mut self, orig: &Oper, new: &Oper) {
-        // println!("replace {:?} with {:?}", orig, new);
         for bb in &mut self.blocks {
             for stmt in &bb.statements {
                 stmt.borrow_mut().replace_all_oper_def_with(orig, new);
                 stmt.borrow_mut().replace_all_oper_use_with(orig, new);
             }
+            
             match &mut bb.goto {
                 Some(stmt) => {
                     stmt.replace_all_oper_use_with(orig, new);
@@ -130,6 +131,9 @@ impl CFG {
     }
 }
 
+// Ah... this monster method to convert tac to a cfg.
+// This is my 5th iteration of this method and I still dont like it.
+// Dont even try to read it just know it works, probably.
 impl From<&Vec<Stmt>> for CFG {
     fn from(linear_code: &Vec<Stmt>) -> Self {
         let mut label_count = 0;

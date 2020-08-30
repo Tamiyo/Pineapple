@@ -1,6 +1,10 @@
 use indexmap::{IndexMap, IndexSet};
 use std::{fmt, hash::Hash};
 
+
+// I mean, its a graph what more do you want?
+// No, its not efficient but who needs efficiency?
+// (Kidding, will update at some later stage)
 pub trait Graph<T: Clone + Hash + Eq> {
     fn insert(&mut self, a: T);
     fn remove(&mut self, a: &T);

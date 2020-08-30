@@ -2,7 +2,7 @@
 /// struct to convert each float into it's integer form.
 ///
 /// TODO :- Look into if this is actually efficient.
-///         It is lazy tho :)
+///         It is lazy and it allows me to Copy constants :)
 /// 
 /// See https://stackoverflow.com/questions/39638363/how-can-i-use-a-hashmap-with-f64-as-key-in-rust
 use std::cmp;

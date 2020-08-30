@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+// I don't even think we need this but I'll keep it in here just in case
 pub struct Node<T> {
     inner: T,
     children: Vec<Rc<Node<T>>>,

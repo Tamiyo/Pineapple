@@ -5,6 +5,8 @@ use std::fmt;
 // Dominators
 // https://www.cl.cam.ac.uk/~mr10/lengtarj.pdf
 // https://gist.github.com/yuzeh/a5e6602dfdb0db3c2130c10537db54d7
+// I don't like dealing with Options here, but idk if there is a proper way of 
+// having a "null" value like this. Will look into but this is unimportant.
 #[derive(Default)]
 pub struct DominatorContext {
     pub dom: Vec<Option<usize>>,
@@ -33,41 +35,6 @@ struct DominatorState {
     best: Vec<Option<usize>>,
     n: usize,
 }
-
-fn dfs(state: &mut DominatorState, p: Option<usize>, n: usize, cfg: &CFG) {
-    if state.dfnum[n] == 0 {
-        state.dfnum[n] = state.n;
-        state.vertex[state.n] = Some(n);
-        state.parent[n] = p;
-        state.n += 1;
-
-        for w in &cfg.graph.succ[n] {
-            dfs(state, Some(n), *w, cfg);
-        }
-    }
-}
-
-fn ancestor_with_lowest_semi(state: &mut DominatorState, v: usize) -> Option<usize> {
-    if let Some(a) = state.ancestor[v] {
-        if let Some(_) = state.ancestor[a] {
-            let b = ancestor_with_lowest_semi(state, a).unwrap();
-            state.ancestor[v] = state.ancestor[a];
-
-            if state.dfnum[state.semi[b].unwrap()]
-                < state.dfnum[state.semi[state.best[v].unwrap()].unwrap()]
-            {
-                state.best[v] = Some(b);
-            }
-        }
-    }
-    state.best[v]
-}
-
-fn link(state: &mut DominatorState, p: Option<usize>, n: usize) {
-    state.ancestor[n] = p;
-    state.best[n] = Some(n);
-}
-
 // Implementation of lengauer_tarjan algo
 // Adapted from https://gist.github.com/yuzeh/a5e6602dfdb0db3c2130c10537db54d7 and Appel p.414
 // This is kinda dirty with Options, I wonder if there is a better way to do this?
@@ -81,7 +48,42 @@ pub fn compute_dominator_context(cfg: &mut CFG) {
     cfg.dom_ctx = ctx;
 }
 
+// Not sure how I feel about inlining the helper functions inside this one...
 fn compute_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
+    fn dfs(state: &mut DominatorState, p: Option<usize>, n: usize, cfg: &CFG) {
+        if state.dfnum[n] == 0 {
+            state.dfnum[n] = state.n;
+            state.vertex[state.n] = Some(n);
+            state.parent[n] = p;
+            state.n += 1;
+
+            for w in &cfg.graph.succ[n] {
+                dfs(state, Some(n), *w, cfg);
+            }
+        }
+    }
+
+    fn ancestor_with_lowest_semi(state: &mut DominatorState, v: usize) -> Option<usize> {
+        if let Some(a) = state.ancestor[v] {
+            if let Some(_) = state.ancestor[a] {
+                let b = ancestor_with_lowest_semi(state, a).unwrap();
+                state.ancestor[v] = state.ancestor[a];
+
+                if state.dfnum[state.semi[b].unwrap()]
+                    < state.dfnum[state.semi[state.best[v].unwrap()].unwrap()]
+                {
+                    state.best[v] = Some(b);
+                }
+            }
+        }
+        state.best[v]
+    }
+
+    fn link(state: &mut DominatorState, p: Option<usize>, n: usize) {
+        state.ancestor[n] = p;
+        state.best[n] = Some(n);
+    }
+
     let mut state = DominatorState::default();
 
     // Init
@@ -183,6 +185,8 @@ fn compute_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
     ctx.dom = state.idom.clone();
 }
 
+// I'll be honest I have no idea where I found this algorithm, maybe I made it who knows.
+// It does look inefficient though so I'll have to find a proper solution in the future.
 fn compute_immediate_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
     let mut idom: Vec<Option<usize>> = vec![None; cfg.blocks.len()];
 
@@ -201,6 +205,7 @@ fn compute_immediate_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
     ctx.idom = idom;
 }
 
+// This is pretty efficient according to the SSA book.
 fn compute_dominance_frontier(cfg: &CFG, ctx: &mut DominatorContext) {
     let mut domf: Vec<HashSet<usize>> = vec![HashSet::new(); cfg.blocks.len()];
 

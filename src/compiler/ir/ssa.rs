@@ -14,6 +14,7 @@ fn insert_phi_functions(cfg: &mut CFG) {
             [TODO]
             SSA BOOK :- p.31
             Does this apply to only variables, or does a temporary count as a variable as well?
+            8/30/2020 - Literature is unclear, proceeding with only variables for now...
         */
         if let Oper::Var(_, _) = v {
             for d in &cfg.def[v] {
@@ -64,8 +65,9 @@ fn rename_variables(cfg: &mut CFG) {
     rename(cfg, 0, &mut count, &mut stack);
 }
 
-// The problem here is that we're hashing on SSA values which we dont want for this stage...
 // https://gist.github.com/CMCDragonkai/2f4b5e078f690443d190
+// This is a inefficient version of the stack-based ssa renaming algo. For now this
+// will suffice but in the future this should be reworked.
 fn rename(
     cfg: &mut CFG,
     n: usize,
@@ -149,6 +151,8 @@ pub fn construct_ssa(cfg: &mut CFG) {
     rename_variables(cfg);
 }
 
+
+// Beware lost-copy problem here. Must be safe about SSA here.
 pub fn destruct_ssa(cfg: &mut CFG) {
     // as_conventional_ssa(cfg);
     // remove_empty_parallel_copies(cfg);
@@ -169,6 +173,10 @@ pub fn destruct_ssa(cfg: &mut CFG) {
                 _ => (),
             }
         }
+
+        // Again I REALLY dont like using these giant iter.filter.map.collects but
+        // it is 1am. Sleepy Tamiyo writes bad code that works and is easy
+        // so here we are. Will do something about this in the future.
         cfg.blocks[b0_ind].statements = cfg.blocks[b0_ind]
             .statements
             .iter()
@@ -179,6 +187,9 @@ pub fn destruct_ssa(cfg: &mut CFG) {
     }
 }
 
+
+// SSA Book uses these... unknown if we need them at this moment but if 
+// ever decide to move to a more complex ssa implementation these may help.
 fn as_conventional_ssa(cfg: &mut CFG) {
     for bb in &mut cfg.blocks {
         bb.insert_at_beginning(Stmt::ParallelCopy);

@@ -10,7 +10,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 type Label = usize;
 
-// AST -> TAC
+// Converts AST -> TAC
 pub struct LinearCodeTransformer {
     statements: Vec<Vec<Stmt>>,
     block: Vec<Stmt>,
@@ -19,6 +19,11 @@ pub struct LinearCodeTransformer {
     backpatch: Vec<usize>,
 }
 
+// I'll be honest, writing this all from scratch, I feel like this code is kinda wizardy...
+// or it could just be a bastardized version of recursive descent but don't @ me it works even
+// though it may not be super maintainable, finicky, and gross. If I can think of a better way to
+// Convert my AST to TAC then I'll change this but the literature is very annoying when trying to
+// read about AST to TAC conversion for machine code.
 impl LinearCodeTransformer {
     pub fn new() -> Self {
         LinearCodeTransformer {

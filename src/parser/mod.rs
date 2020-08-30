@@ -19,6 +19,11 @@ pub mod tokens;
  *  parse expression statements.
  *
  *  This precedence is based off of that of a Pratt Parser.
+ * 
+ *  Personal Note: Bob Nystrom was right in his blog post... Pratt parsers are beautiful
+ *  yet they are the most magical thing I've ever seen in computer science and that 
+ *  includes hand rolling a gradient descent neural network and writing an OS from scratch
+ *  for ARM64. Yeah, I know. It's THAT cool.
  */
 #[derive(Debug, PartialEq, PartialOrd)]
 enum Precedence {
