@@ -1,8 +1,8 @@
 use crate::compiler::dominator::DominatorContext;
 use crate::compiler::ir::Stmt;
-use crate::compiler::ir::{Expr, Oper};
+use crate::compiler::ir::{Oper};
 use crate::util::graph::{DirectedGraph, Graph};
-use indexmap::IndexSet;
+
 use std::cell::RefCell;
 use std::cmp::max;
 use std::collections::HashMap;
@@ -183,8 +183,8 @@ impl From<&Vec<Stmt>> for CFG {
 
         blocks.push(BasicBlock {
             statements: current_block_statements,
-            label: blabel.clone(),
-            goto: bgoto.clone(),
+            label: blabel,
+            goto: bgoto,
         });
 
         let mut graph: DirectedGraph<usize> = DirectedGraph::new();

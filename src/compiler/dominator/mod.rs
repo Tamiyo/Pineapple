@@ -65,7 +65,7 @@ fn compute_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
 
     fn ancestor_with_lowest_semi(state: &mut DominatorState, v: usize) -> Option<usize> {
         if let Some(a) = state.ancestor[v] {
-            if let Some(_) = state.ancestor[a] {
+            if state.ancestor[a].is_some() {
                 let b = ancestor_with_lowest_semi(state, a).unwrap();
                 state.ancestor[v] = state.ancestor[a];
 
@@ -148,7 +148,7 @@ fn compute_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
 
     for i in 1..(state.n - 1) {
         let n = state.vertex[i].unwrap();
-        if let Some(_) = state.samedom[n] {
+        if state.samedom[n].is_some() {
             state.idom[n] = state.idom[state.samedom[n].unwrap()];
         }
     }
@@ -182,7 +182,7 @@ fn compute_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
     strict_traversal(0, &children, &mut strict);
 
     ctx.strict_dom = strict;
-    ctx.dom = state.idom.clone();
+    ctx.dom = state.idom;
 }
 
 // I'll be honest I have no idea where I found this algorithm, maybe I made it who knows.

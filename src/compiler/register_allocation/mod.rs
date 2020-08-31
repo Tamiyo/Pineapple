@@ -38,7 +38,7 @@ fn compute_live_intervals(cfg: &CFG) -> Vec<Interval> {
                         let interval = Interval {
                             start: s,
                             end: s,
-                            oper: def.clone(),
+                            oper: def,
                         };
                         entry.insert(interval);
                     }
@@ -109,7 +109,7 @@ fn linear_scan_register_allocation(cfg: &CFG) -> AllocState {
             .iter()
             .enumerate()
             .filter(|(i, _)| !to_remove.contains(i))
-            .map(|(_, i)| i.clone())
+            .map(|(_, i)| *i)
             .collect();
     }
 
