@@ -179,66 +179,7 @@ pub fn destruct_ssa(cfg: &mut CFG) {
     flatten_parallel_copies(cfg);
 }
 
-// Beware lost-copy and copy-swap problem. Must be safe about SSA here.
-// https://www.clear.rice.edu/comp512/Lectures/13SSA-2.pdf (SEE SLIDE 8)
-pub fn naive_destruct_ssa(cfg: &mut CFG) {
-    rename_variables(cfg);
-
-    for b0_ind in 0..cfg.blocks.len() {
-        let b0 = &cfg.blocks[b0_ind];
-        let mut to_remove = vec![];
-        for (index, statement) in b0.statements.clone().iter().enumerate() {
-            match &mut *statement.borrow_mut() {
-                Stmt::Tac(a0, Expr::Phi(args)) => {
-                    for (ai, bi) in args {
-                        let stmt = Stmt::Tac(*a0, Expr::Oper(*ai));
-                        cfg.blocks[*bi].insert_at_end(stmt);
-                    }
-
-                    // remove_phi_func
-                    to_remove.push(index);
-                }
-                _ => (),
-            }
-        }
-
-        // Again I REALLY dont like using these giant iter.filter.map.collects but
-        // it is 1am. Sleepy Tamiyo writes bad code that works and is easy
-        // so here we are. Will do something about this in the future.
-        cfg.blocks[b0_ind].statements = cfg.blocks[b0_ind]
-            .statements
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| !to_remove.contains(i))
-            .map(|(_, v)| v.clone())
-            .collect();
-    }
-}
-
-// Experimental
-fn phi_web_discovery(cfg: &mut CFG) {
-    let mut phiweb: HashMap<Oper, HashSet<Oper>> = HashMap::new();
-
-    for v in cfg.def.keys() {
-        if let Oper::Var(_, _) = v {
-            phiweb.insert(*v, HashSet::new());
-        }
-    }
-
-    for bb in &cfg.blocks {
-        for statement in &bb.statements {
-            if let Stmt::Tac(adest, Expr::Phi(args)) = &*statement.borrow() {
-                for (ai, _) in args {
-                    let phiweb_ai = phiweb.get(&ai).unwrap().clone();
-                    phiweb.get_mut(&adest).unwrap().extend(phiweb_ai);
-                }
-            }
-        }
-    }
-}
-
-// SSA Book uses these... unknown if we need them at this moment but if
-// ever decide to move to a more complex ssa implementation these may help.
+// Experimental - Adv ssa destruction to 
 fn convert_to_conventional_ssa(cfg: &mut CFG) {
     for bb in &mut cfg.blocks {
         bb.insert_at_beginning(Stmt::ParallelCopy(vec![]));
@@ -252,7 +193,7 @@ fn convert_to_conventional_ssa(cfg: &mut CFG) {
             match &mut *statement.borrow_mut() {
                 Stmt::Tac(a0, Expr::Phi(args)) => {
                     for (ai, bi) in args.iter_mut() {
-                        let PCi = cfg.blocks[*bi].statements.last().unwrap();
+                        let pci = cfg.blocks[*bi].statements.last().unwrap();
 
                         let ai_prime = match ai {
                             Oper::Var(value, _) => Oper::Var(*value, 0),
@@ -260,8 +201,8 @@ fn convert_to_conventional_ssa(cfg: &mut CFG) {
                             _ => panic!("Expected var in phi function"),
                         };
 
-                        // PCi.replace(Stmt::Tac(ai_prime, Expr::Oper(*ai)));
-                        match &mut *PCi.borrow_mut() {
+                        // pci.replace(Stmt::Tac(ai_prime, Expr::Oper(*ai)));
+                        match &mut *pci.borrow_mut() {
                             Stmt::ParallelCopy(pcopy) => pcopy
                                 .push(Rc::new(RefCell::new(Stmt::Tac(ai_prime, Expr::Oper(*ai))))),
                             _ => panic!(""),
@@ -269,19 +210,19 @@ fn convert_to_conventional_ssa(cfg: &mut CFG) {
                         *ai = ai_prime;
                     }
                     // begin
-                    let PC0 = b0.statements.first().unwrap();
+                    let pc0 = b0.statements.first().unwrap();
                     let a0_prime = match a0 {
                         Oper::Var(value, _) => Oper::Var(*value, 0),
                         // Oper::Temp(value, _) => Oper::Var(*value, 0),
                         _ => panic!("Expected var in phi function"),
                     };
 
-                    // PC0.replace(Stmt::Tac(*a0, Expr::Oper(a0_prime)));
-                    match &mut *PC0.borrow_mut() {
+                    // pc0.replace(Stmt::Tac(*a0, Expr::Oper(a0_prime)));
+                    match &mut *pc0.borrow_mut() {
                         Stmt::ParallelCopy(pcopy) => {
                             pcopy.push(Rc::new(RefCell::new(Stmt::Tac(*a0, Expr::Oper(a0_prime)))))
                         }
-                        _ => panic!("expected PC0 to be a parallel copy"),
+                        _ => panic!("expected pc0 to be a parallel copy"),
                     }
                     *a0 = a0_prime;
 
@@ -335,7 +276,17 @@ fn remove_phi_functions(cfg: &mut CFG) {
     }
 }
 
-// Holy **** the code below is AWFUL, I HATE EVERY LINE OF IT.... BUT IT WORKS FOR NOW WILL FIX
+fn sequence_parallel_copies(cfg: &mut CFG) {
+    for bb in &cfg.blocks {
+        for stmt in &bb.statements {
+            if let Stmt::ParallelCopy(pcopy) = &mut *stmt.borrow_mut() {
+                sequence_parallel_copy(pcopy);
+            }
+        }
+    }
+}
+
+// Holy **** the code below is AWFUL, I HATE EVERY LINE OF IT.... BUT IT WORKS FOR NOW WILL FIX LATER
 fn sequence_parallel_copy(pcopy: &mut Vec<Rc<RefCell<Stmt>>>) {
     let mut seq: Vec<Rc<RefCell<Stmt>>> = vec![];
 
@@ -399,16 +350,6 @@ fn sequence_parallel_copy(pcopy: &mut Vec<Rc<RefCell<Stmt>>>) {
     }
     if !seq.is_empty() {
         *pcopy = seq;
-    }
-}
-
-fn sequence_parallel_copies(cfg: &mut CFG) {
-    for bb in &cfg.blocks {
-        for stmt in &bb.statements {
-            if let Stmt::ParallelCopy(pcopy) = &mut *stmt.borrow_mut() {
-                sequence_parallel_copy(pcopy);
-            }
-        }
     }
 }
 

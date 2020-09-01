@@ -12,7 +12,7 @@ type Label = usize;
 
 // Converts AST -> TAC
 pub struct LinearCodeTransformer {
-    statements: Vec<Vec<Stmt>>,
+    statements: Vec<(Vec<Stmt>, usize)>,
     block: Vec<Stmt>,
     reg_count: usize,
     label_count: usize,
@@ -30,7 +30,7 @@ impl LinearCodeTransformer {
             statements: vec![],
             block: vec![],
             reg_count: 0,
-            label_count: 1,
+            label_count: 0,
             backpatch: vec![],
         }
     }
@@ -48,12 +48,12 @@ impl LinearCodeTransformer {
     }
 
     fn merge_labels(&mut self, b: usize) {
-        let mut block = self.statements[b].clone();
+        let mut block = self.statements[b].clone().0;
 
         let mut marked: Vec<usize> = vec![0; block.len()];
         let mut label_ref: HashMap<Label, Vec<usize>> = HashMap::new();
 
-        for (i, stmt) in self.statements[b].iter().enumerate() {
+        for (i, stmt) in self.statements[b].0.iter().enumerate() {
             match stmt {
                 Stmt::Label(l) => {
                     let labels = match label_ref.entry(*l) {
@@ -98,20 +98,38 @@ impl LinearCodeTransformer {
             .enumerate()
             .filter(|(i, _)| marked[*i] == 0)
             .map(|(_, e)| e.clone());
-        self.statements[b] = filtered.collect::<Vec<_>>();
+        self.statements[b].0 = filtered.collect::<Vec<_>>();
     }
 
-    pub fn translate(&mut self, ast: Vec<ast::Stmt>) -> Vec<Vec<Stmt>> {
-        self.block.push(Stmt::Label(0));
+    pub fn translate(&mut self, ast: Vec<ast::Stmt>) -> Vec<(Vec<Stmt>, usize)> {
         for stmt in &ast {
-            if let ast::Stmt::Function(function_name, args, block) = stmt {
+            if let ast::Stmt::Function(function_sym, args, block) = stmt {
+                self.block.push(Stmt::NamedLabel(*function_sym));
+                for arg in args.iter().rev() {
+                    self.block
+                        .push(Stmt::Tac(Oper::Var(*arg, 0), Expr::Oper(Oper::StackPop)));
+                }
+
+                for stmt in block {
+                    self.translate_statement(stmt);
+                }
+
+                if let Stmt::Return(_) = self.block.last().unwrap() {
+                } else {
+                    self.block
+                        .push(Stmt::Return(Oper::Constant(Constant::None)));
+                }
+
+                let block = self.block.clone();
+                self.block.clear();
+                self.statements.push((block, args.len()));
             } else {
-                self.translate_statement(stmt);
+                panic!("Expected function at outer scope!")
             }
         }
 
-        let block = self.block.clone();
-        self.statements.push(block);
+        // let block = self.block.clone();
+        // self.statements.push((block, 0));
 
         let size = self.statements.len();
         for i in 0..size {
@@ -140,7 +158,21 @@ impl LinearCodeTransformer {
             ast::Stmt::Print(args) => {
                 self.translate_print_statement(args);
             }
+            ast::Stmt::Return(to_return) => self.translate_return(to_return),
             _ => unimplemented!(),
+        }
+    }
+
+    fn translate_return(&mut self, to_return: &Option<Box<ast::Expr>>) {
+        match to_return {
+            Some(expr) => {
+                let res = self.translate_expression(expr, false);
+                self.block.push(Stmt::Return(res))
+            }
+            None => {
+                self.block
+                    .push(Stmt::Return(Oper::Constant(Constant::None)));
+            }
         }
     }
 
@@ -238,18 +270,50 @@ impl LinearCodeTransformer {
             ast::Expr::String(n) => Oper::Constant(Constant::String(*n)),
             ast::Expr::Variable(n) => Oper::Var(*n, 0),
             ast::Expr::Assign(n, l) => self.translate_assign(n, l),
+            ast::Expr::Call(n, args) => self.translate_call(n, args),
             ast::Expr::Binary(l, o, r) => self.translate_binary(l, o, r),
             ast::Expr::Logical(l, o, r) => self.translate_logical(l, o, r),
             ast::Expr::Grouping(e) => self.translate_expression(e, is_cond),
         }
     }
 
+    fn translate_call(&mut self, expr: &ast::Expr, args: &[ast::Expr]) -> Oper {
+        self.block.push(Stmt::StackPushAllReg);
+        for arg in args {
+            let res = self.translate_expression(arg, false);
+            self.block.push(Stmt::StackPush(res));
+        }
+
+        let raw_str = self.translate_expression(expr, false);
+        match raw_str {
+            Oper::Var(sym, _) => {
+                self.block.push(Stmt::JumpNamed(sym));
+
+                let label = self.new_label();
+
+                self.block.push(Stmt::Label(label));
+                self.block.push(Stmt::StackPopAllReg);
+
+                Oper::Call(sym, args.len())
+            }
+            _ => panic!("Expected string as funciton name"),
+        }
+    }
+
     fn translate_assign(&mut self, n: &usize, l: &ast::Expr) -> Oper {
         let lval = Oper::Var(*n, 0);
-        let rval = Expr::Oper(self.translate_expression(l, false));
 
-        let code = Stmt::Tac(lval, rval);
-        self.block.push(code);
+        if let ast::Expr::Call(_, _) = l {
+            let rval = Expr::Oper(self.translate_expression(l, false));
+            self.block.push(Stmt::Expr(rval));
+            self.block
+                .push(Stmt::Tac(lval, Expr::Oper(Oper::ReturnValue)))
+        } else {
+            let rval = Expr::Oper(self.translate_expression(l, false));
+
+            let code = Stmt::Tac(lval, rval);
+            self.block.push(code);
+        }
 
         lval
     }

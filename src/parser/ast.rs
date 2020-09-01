@@ -21,6 +21,7 @@ pub enum Expr {
     Binary(Box<Expr>, BinOp, Box<Expr>),
     Logical(Box<Expr>, RelOp, Box<Expr>),
     Grouping(Box<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
 }
 
 /**

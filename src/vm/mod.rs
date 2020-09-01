@@ -1,7 +1,7 @@
 use crate::bytecode::string_intern::get_string;
 use crate::compiler::CompilerContext;
 use crate::{
-    bytecode::{constant::Constant, OpCode, IR, OR},
+    bytecode::{constant::Constant, Label, OpCode, IR, OR},
     parser::{binop::BinOp, relop::RelOp},
 };
 
@@ -42,6 +42,9 @@ pub struct VM {
     // TODO - Change constant to its own "VM" type (See Mango VM)
     r: [Constant; NUM_REGISTERS],
 
+    // return value
+    rv: Constant,
+
     // Return Address
     ra: usize,
 
@@ -61,6 +64,7 @@ impl VM {
             ip: 0,
             fp: 0,
             r: [Constant::None; NUM_REGISTERS],
+            rv: Constant::None,
             ra: 0,
             stack: vec![],
             sp: 0,
@@ -84,17 +88,25 @@ impl VM {
         }
     }
 
-    fn from_input_register(&self, ir: &IR) -> Constant {
+    fn from_input_register(&mut self, ir: &IR) -> Constant {
         match ir {
             IR::REG(reg) => self.r[*reg],
             IR::CONST(c) => *c,
             IR::STACK(ptr) => self.stack[self.sp - *ptr],
+            IR::STACKPOP => self.stack_pop(),
+            IR::RETVAL => self.rv,
         }
     }
 
     fn stack_push(&mut self, value: Constant) {
         self.stack.push(value);
         self.sp += 1;
+    }
+
+    fn stack_pop(&mut self) -> Constant {
+        let constant = self.stack.pop().unwrap();
+        self.sp -= 1;
+        constant
     }
 
     /**
@@ -106,7 +118,6 @@ impl VM {
      *      Err(e) : An error occured at some stage of execution.
      */
     pub fn dispatch(&mut self, compiler_context: &CompilerContext) -> Result<(), String> {
-
         // Reserve space on the stack for overflow'd variable allocations
         for _ in 0..(compiler_context.stack_offset + 1) {
             self.stack_push(Constant::None);
@@ -130,6 +141,71 @@ impl VM {
                     self.store_constant(or, res);
                 }
 
+                OpCode::SUB(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    let res = a.compute_binary(BinOp::Minus, b);
+                    self.store_constant(or, res);
+                }
+
+                OpCode::MUL(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    let res = a.compute_binary(BinOp::Star, b);
+                    self.store_constant(or, res);
+                }
+
+                OpCode::DIV(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    let res = a.compute_binary(BinOp::Slash, b);
+                    self.store_constant(or, res);
+                }
+
+                OpCode::MOD(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    let res = a.compute_binary(BinOp::Modulo, b);
+                    self.store_constant(or, res);
+                }
+
+                OpCode::POW(or, ir1, ir2) => {
+                    let a = self.from_input_register(ir1);
+                    let b = self.from_input_register(ir2);
+
+                    let res = a.compute_binary(BinOp::Carat, b);
+                    self.store_constant(or, res);
+                }
+
+                // OpCode::AND(or, ir1, ir2) => {
+                //     let a = self.from_input_register(ir1);
+                //     let b = self.from_input_register(ir2);
+
+                //     match (a, b) {
+                //         (Constant::Boolean(a), Constant::Boolean(b)) => {
+                //             let res = Constant::Boolean(a && b);
+                //             self.store_constant(or, res);
+                //         }
+                //         _ => panic!("And can only be between two bools"),
+                //     }
+                // }
+
+                // OpCode::OR(or, ir1, ir2) => {
+                //     let a = self.from_input_register(ir1);
+                //     let b = self.from_input_register(ir2);
+
+                //     match (a, b) {
+                //         (Constant::Boolean(a), Constant::Boolean(b)) => {
+                //             let res = Constant::Boolean(a || b);
+                //             self.store_constant(or, res);
+                //         }
+                //         _ => panic!("And can only be between two bools"),
+                //     }
+                // }
                 OpCode::NEQ(or, ir1, ir2) => {
                     let a = self.from_input_register(ir1);
                     let b = self.from_input_register(ir2);
@@ -178,15 +254,39 @@ impl VM {
                     self.store_constant(or, res);
                 }
 
-                OpCode::JUMP(label) => {
-                    self.ip = *label;
+                OpCode::JUMP(label) => match label {
+                    Label::Label(l) => {
+                        self.ip = compiler_context.labels[l];
+                    }
+                    Label::Named(l) => {
+                        self.ip = compiler_context.named_labels[l];
+                    }
+                },
+
+                OpCode::JUMPR(label) => {
+                    self.ra = self.ip + 1;
+                    match label {
+                        Label::Label(l) => {
+                            self.ip = compiler_context.labels[l];
+                        }
+                        Label::Named(l) => {
+                            self.ip = compiler_context.named_labels[l];
+                        }
+                    }
                 }
 
                 OpCode::BT(ir, label) => {
                     let res = self.from_input_register(ir) == Constant::Boolean(true);
 
                     if res {
-                        self.ip = *label;
+                        match label {
+                            Label::Label(l) => {
+                                self.ip = compiler_context.labels[l];
+                            }
+                            Label::Named(l) => {
+                                self.ip = compiler_context.named_labels[l];
+                            }
+                        }
                     }
                 }
 
@@ -195,11 +295,22 @@ impl VM {
                     self.stack_push(res);
                 }
 
+                OpCode::PUSHA => {
+                    for rindex in 0..self.r.len() {
+                        self.stack_push(self.r[rindex]);
+                    }
+                }
+
+                OpCode::POPA => {
+                    for rindex in (0..self.r.len()).rev() {
+                        let popped = self.stack_pop();
+                        self.r[rindex] = popped;
+                    }
+                }
+
                 OpCode::CALL(intern, arity) => {
                     let name = get_string(*intern);
-                    if name != "print" {
-                        unimplemented!()
-                    } else {
+                    if name == "print" {
                         let mut values = vec![];
                         for _ in 0..*arity {
                             let value = self
@@ -215,13 +326,25 @@ impl VM {
 
                         print!("\n");
                     }
+                    // else if compiler_context.named_labels.contains_key(intern) {
+                    //     self.ip = compiler_context.named_labels[intern];
+                    // }
+                    else {
+                        panic!("function doesn't exist")
+                    }
                 }
+
+                OpCode::RETURN(ir) => {
+                    let res = self.from_input_register(ir);
+                    self.rv = res;
+                    self.ip = self.ra;
+                }
+                OpCode::NOP => (),
 
                 OpCode::HLT => {
                     break;
                 }
-
-                _ => unimplemented!(),
+                _ => unimplemented!("{:?} not implemented", instruction),
             }
 
             self.ip += 1;

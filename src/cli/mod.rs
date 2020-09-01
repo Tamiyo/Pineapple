@@ -91,13 +91,13 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     for linear_code in linear_code_blocks {
         let mut cfg = CFG::from(&linear_code);
 
+        if args.debug {
+            println!("::CFG::");
+            println!("{:?}", cfg);
+        }
+
         compute_dominator_context(&mut cfg);
         construct_ssa(&mut cfg);
-
-        // if args.debug {
-        //     println!("::CFG::");
-        //     println!("{}", cfg);
-        // }
 
         // Optimizations go here
 
@@ -105,22 +105,22 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
 
         register_allocation(&mut cfg);
 
-        if args.debug {
-            println!("::CFG::");
-            println!("{}", cfg);
-        }
-        
-        // // TODO remove this, only here for testing
-        let compiler_context = compile_ir(&mut cfg);
-
-        let mut vm = VM::new();
-        match vm.dispatch(&compiler_context) {
-            Ok(()) => (),
-            Err(e) => panic!(e),
-        };
-
         cfgs.push(cfg);
     }
+
+    let compiler_context = compile_ir(cfgs);
+
+    if args.debug {
+        for (index, instr) in compiler_context.instructions.iter().enumerate() {
+            println!("{}:\t{:?}", index, instr);
+        }
+    }
+
+    let mut vm = VM::new();
+    match vm.dispatch(&compiler_context) {
+        Ok(()) => (),
+        Err(e) => panic!(e),
+    };
 
     Ok(())
 }

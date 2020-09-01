@@ -1,0 +1,24 @@
+#adder(a, b) {
+    return a + b;
+}
+
+#subber(a, b) {
+    return a - b;
+}
+
+#multer(a, b) {
+    return a * b;
+}
+
+#main() {
+    x = adder(2, 7);
+    y = subber(5, 3);
+    z = multer(3, 7);
+    q = diver(6, 5);
+
+    print(x, y, z, q);
+}
+
+#diver(a, b) {
+    return a / b;
+}

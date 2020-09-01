@@ -5,13 +5,15 @@ pub mod optimizer;
 pub mod register_allocation;
 pub mod transformer;
 
-use crate::bytecode::{OpCode, IR, OR};
+use crate::bytecode::string_intern::get_string;
+use crate::bytecode::string_intern::intern_string;
+use crate::bytecode::{Label, OpCode, IR, OR};
 use crate::{
     compiler::flowgraph::cfg::CFG,
     parser::{binop::BinOp, relop::RelOp},
 };
 use ir::{Expr, Oper, Stmt};
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // This is interesting. Coming from mango where we didnt compile machine code / tac this processes was very
 // different. This will probably change once I implement scores and/or closures. I'll be honest I don't like
@@ -19,7 +21,8 @@ use std::collections::HashMap;
 pub struct CompilerContext {
     pub instructions: Vec<OpCode>,
     pub labels: HashMap<usize, usize>,
-    pub stack_offset: usize,
+    pub named_labels: HashMap<usize, usize>,
+    pub stack_offset: usize, // How many spaces on the stack we want to reserve
 }
 
 impl CompilerContext {
@@ -27,69 +30,124 @@ impl CompilerContext {
         CompilerContext {
             instructions: Vec::new(),
             labels: HashMap::new(),
+            named_labels: HashMap::new(),
             stack_offset: 0,
         }
     }
 }
 
-pub fn compile_ir(cfg: &CFG) -> CompilerContext {
-    let mut compiler_context = CompilerContext::new();
+fn operand_to_ir(cctx: &mut CompilerContext, operand: &Oper) -> IR {
+    let inreg = match operand {
+        Oper::Register(r) => IR::REG(*r),
+        Oper::Constant(c) => IR::CONST(*c),
+        Oper::StackLocation(s) => {
+            cctx.stack_offset = usize::max(cctx.stack_offset, *s);
+            IR::STACK(*s)
+        }
+        Oper::StackPop => IR::STACKPOP,
+        Oper::ReturnValue => IR::RETVAL,
+        _ => panic!("Unexpected Register"),
+    };
+    inreg
+}
 
-    let statements = cfg.statements();
-    let size = statements.len();
-    for (i, statement) in statements.iter().rev().enumerate() {
-        match &*statement.borrow() {
-            Stmt::Label(label) | Stmt::NamedLabel(label) => {
-                compiler_context.labels.insert(*label, size - i - 1);
+pub fn compile_ir(cfgs: Vec<CFG>) -> CompilerContext {
+    let mut cctx = CompilerContext::new();
+
+    let mut func_cfgs = vec![];
+    let mut main_cfgs = vec![];
+    for cfg in cfgs {
+        if let Some(Stmt::NamedLabel(name)) = cfg.blocks[0].label {
+            if intern_string("main".to_string()) == name {
+                main_cfgs.push(cfg);
+            } else {
+                func_cfgs.push(cfg);
+            }
+        }
+    }
+
+    let mut instr_count = 0;
+    for cfg in &main_cfgs {
+        let statements = cfg.statements();
+        compile_statements(&mut cctx, &statements, &mut instr_count);
+        let len = cctx.instructions.len();
+        cctx.instructions.insert(len - 1, OpCode::HLT);
+    }
+
+    for cfg in &func_cfgs {
+        let statements = cfg.statements();
+        compile_statements(&mut cctx, &statements, &mut instr_count);
+    }
+
+    for (i, instr) in cctx.instructions.iter().enumerate() {
+        match instr {
+            OpCode::LABEL(Label::Label(label)) => {
+                cctx.labels.insert(*label, i);
+            }
+            OpCode::LABEL(Label::Named(label)) => {
+                cctx.named_labels.insert(*label, i);
             }
             _ => (),
         }
     }
 
-    for (i, statement) in statements.iter().rev().enumerate() {
-        match &*statement.borrow() {
-            Stmt::Tac(lval, rval) => compile_tac(&mut compiler_context, lval, rval),
-            Stmt::Label(_) | Stmt::NamedLabel(_) => {
-                compiler_context
-                    .instructions
-                    .push(OpCode::LABEL(size - i - 1));
-            }
-            Stmt::Jump(label) => {
-                let label = compiler_context.labels[label];
-                compiler_context.instructions.push(OpCode::JUMP(label))
-            }
-            Stmt::CJump(cond, label) => compile_cjump(&mut compiler_context, cond, label),
-            Stmt::StackPush(operand) => {
-                let inreg = match operand {
-                    Oper::Register(r) => IR::REG(*r),
-                    Oper::Constant(c) => IR::CONST(*c),
-                    Oper::StackLocation(s) => {
-                        compiler_context.stack_offset =
-                            usize::max(compiler_context.stack_offset, *s);
-                        IR::STACK(*s)
-                    }
-                    _ => panic!("Unexpected Register"),
-                };
-
-                compiler_context.instructions.push(OpCode::PUSH(inreg))
-            }
-            Stmt::Call(intern, arity) => compiler_context
-                .instructions
-                .push(OpCode::CALL(*intern, *arity)),
-            _ => unimplemented!(),
-        }
-    }
-
-    compiler_context.instructions.reverse();
-    compiler_context.instructions.push(OpCode::HLT);
-    compiler_context
+    cctx
 }
 
-fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr) {
+fn compile_statements(
+    cctx: &mut CompilerContext,
+    statements: &Vec<Rc<RefCell<Stmt>>>,
+    instr_count: &mut usize,
+) {
+    for statement in statements.iter() {
+        match &*statement.borrow() {
+            Stmt::Tac(lval, rval) => compile_tac(cctx, lval, rval),
+            Stmt::Label(label) => {
+                cctx.instructions
+                    .push(OpCode::LABEL(crate::bytecode::Label::Label(*label)));
+            }
+            Stmt::NamedLabel(label) => {
+                cctx.instructions
+                    .push(OpCode::LABEL(crate::bytecode::Label::Named(*label)));
+            }
+            Stmt::Jump(label) => {
+                cctx.instructions
+                    .push(OpCode::JUMP(crate::bytecode::Label::Label(*label)))
+            }
+            Stmt::JumpNamed(label) => {
+                cctx.instructions
+                    .push(OpCode::JUMPR(crate::bytecode::Label::Named(*label)));
+            }
+            Stmt::CJump(cond, label) => compile_cjump(cctx, cond, label),
+            Stmt::StackPush(operand) => {
+                let inreg = operand_to_ir(cctx, operand);
+                cctx.instructions.push(OpCode::PUSH(inreg))
+            }
+            Stmt::StackPushAllReg => cctx.instructions.push(OpCode::PUSHA),
+            Stmt::StackPopAllReg => cctx.instructions.push(OpCode::POPA),
+            Stmt::Call(intern, arity) => cctx.instructions.push(OpCode::CALL(*intern, *arity)),
+            Stmt::Return(oper) => {
+                let inreg = operand_to_ir(cctx, oper);
+                cctx.instructions.push(OpCode::RETURN(inreg));
+            }
+            // Stmt::Expr(expr) => match expr {
+            //     Expr::Oper(Oper::Call(intern, arity)) => {
+            //         cctx.instructions.push(OpCode::CALL(*intern, *arity))
+            //     }
+            //     _ => unimplemented!(""),
+            // },
+            Stmt::Expr(expr) => cctx.instructions.push(OpCode::NOP),
+            _ => unimplemented!("{:?} isnt implemented", statement),
+        }
+        *instr_count += 1;
+    }
+}
+
+fn compile_tac(cctx: &mut CompilerContext, lval: &Oper, rval: &Expr) {
     let outreg = match lval {
         Oper::Register(r) => OR::REG(*r),
         Oper::StackLocation(s) => {
-            compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
+            cctx.stack_offset = usize::max(cctx.stack_offset, *s);
             OR::STACK(*s)
         }
         _ => panic!("Expected a register as output!"),
@@ -97,99 +155,48 @@ fn compile_tac(compiler_context: &mut CompilerContext, lval: &Oper, rval: &Expr)
 
     match rval {
         Expr::Binary(a, op, b) => {
-            let a = match a {
-                Oper::Register(r) => IR::REG(*r),
-                Oper::Constant(c) => IR::CONST(*c),
-                Oper::StackLocation(s) => {
-                    compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
-                    IR::STACK(*s)
-                }
-                _ => panic!("Unexpected Register"),
-            };
-
-            let b = match b {
-                Oper::Register(r) => IR::REG(*r),
-                Oper::Constant(c) => IR::CONST(*c),
-                Oper::StackLocation(s) => {
-                    compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
-                    IR::STACK(*s)
-                }
-                _ => panic!("Unexpected Register"),
-            };
+            let a = operand_to_ir(cctx, a);
+            let b = operand_to_ir(cctx, b);
 
             match op {
-                BinOp::Plus => compiler_context
-                    .instructions
-                    .push(OpCode::ADD(outreg, a, b)),
+                BinOp::Plus => cctx.instructions.push(OpCode::ADD(outreg, a, b)),
+                BinOp::Minus => cctx.instructions.push(OpCode::SUB(outreg, a, b)),
+                BinOp::Star => cctx.instructions.push(OpCode::MUL(outreg, a, b)),
+                BinOp::Slash => cctx.instructions.push(OpCode::DIV(outreg, a, b)),
+                BinOp::Modulo => cctx.instructions.push(OpCode::MOD(outreg, a, b)),
+                BinOp::Carat => cctx.instructions.push(OpCode::POW(outreg, a, b)),
                 _ => unimplemented!(),
             }
         }
         Expr::Logical(a, op, b) => {
-            let a = match a {
-                Oper::Register(r) => IR::REG(*r),
-                Oper::Constant(c) => IR::CONST(*c),
-                Oper::StackLocation(s) => {
-                    compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
-                    IR::STACK(*s)
-                }
-                _ => panic!("Unexpected Register"),
-            };
-
-            let b = match b {
-                Oper::Register(r) => IR::REG(*r),
-                Oper::Constant(c) => IR::CONST(*c),
-                Oper::StackLocation(s) => {
-                    compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
-                    IR::STACK(*s)
-                }
-                _ => panic!("Unexpected Register"),
-            };
+            let a = operand_to_ir(cctx, a);
+            let b = operand_to_ir(cctx, b);
 
             match op {
-                RelOp::NotEqual => compiler_context
-                    .instructions
-                    .push(OpCode::NEQ(outreg, a, b)),
-                RelOp::EqualEqual => compiler_context.instructions.push(OpCode::EQ(outreg, a, b)),
-                RelOp::Less => compiler_context.instructions.push(OpCode::LT(outreg, a, b)),
-                RelOp::LessEqual => compiler_context
-                    .instructions
-                    .push(OpCode::LTE(outreg, a, b)),
-                RelOp::Greater => compiler_context.instructions.push(OpCode::GT(outreg, a, b)),
-                RelOp::GreaterEqual => compiler_context
-                    .instructions
-                    .push(OpCode::GTE(outreg, a, b)),
+                RelOp::NotEqual => cctx.instructions.push(OpCode::NEQ(outreg, a, b)),
+                RelOp::EqualEqual => cctx.instructions.push(OpCode::EQ(outreg, a, b)),
+                RelOp::Less => cctx.instructions.push(OpCode::LT(outreg, a, b)),
+                RelOp::LessEqual => cctx.instructions.push(OpCode::LTE(outreg, a, b)),
+                RelOp::Greater => cctx.instructions.push(OpCode::GT(outreg, a, b)),
+                RelOp::GreaterEqual => cctx.instructions.push(OpCode::GTE(outreg, a, b)),
                 _ => unimplemented!(),
             }
         }
         Expr::Oper(operand) => {
-            let inreg = match operand {
-                Oper::Register(r) => IR::REG(*r),
-                Oper::Constant(c) => IR::CONST(*c),
-                Oper::StackLocation(s) => {
-                    compiler_context.stack_offset = usize::max(compiler_context.stack_offset, *s);
-                    IR::STACK(*s)
-                }
-                _ => panic!("Unexpected Register!"),
-            };
-            compiler_context
-                .instructions
-                .push(OpCode::MOV(outreg, inreg));
+            let inreg = operand_to_ir(cctx, operand);
+            cctx.instructions.push(OpCode::MOV(outreg, inreg));
         }
         // Expr::StackPop => {}
         _ => unimplemented!(),
     };
 }
 
-fn compile_cjump(compiler_context: &mut CompilerContext, cond: &Expr, label: &usize) {
-    let outreg = match cond {
-        Expr::Oper(Oper::Register(r)) => IR::REG(*r),
-        Expr::Oper(Oper::Constant(c)) => IR::CONST(*c),
-        Expr::Oper(Oper::StackLocation(ptr)) => IR::STACK(*ptr),
+fn compile_cjump(cctx: &mut CompilerContext, cond: &Expr, label: &usize) {
+    let inreg = match cond {
+        Expr::Oper(oper) => operand_to_ir(cctx, oper),
         _ => panic!("expected register here!"),
     };
 
-    let label = compiler_context.labels[label];
-    compiler_context
-        .instructions
-        .push(OpCode::BT(outreg, label))
+    cctx.instructions
+        .push(OpCode::BT(inreg, crate::bytecode::Label::Label(*label)))
 }

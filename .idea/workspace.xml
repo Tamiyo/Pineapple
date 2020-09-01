@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="6cffb26b-d372-42df-ab20-a7524cdc5c83" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/src/bytecode/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bytecode/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/cli/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/cli/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/flowgraph/cfg.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/flowgraph/cfg.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/ir/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/ir/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/ir/ssa.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/ir/ssa.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler/transformer/linearcode.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler/transformer/linearcode.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/parser/ast.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/parser/ast.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/parser/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/parser/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vm/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/vm/mod.rs" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectId" id="1guyhlamVeqEYo6lvu06ASFTxOU" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6cffb26b-d372-42df-ab20-a7524cdc5c83" name="Default Changelist" comment="" />
+      <created>1598978903411</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1598978903411</updated>
+    </task>
+    <servers />
+  </component>
+</project>

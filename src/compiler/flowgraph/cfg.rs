@@ -1,6 +1,6 @@
 use crate::compiler::dominator::DominatorContext;
+use crate::compiler::ir::Oper;
 use crate::compiler::ir::Stmt;
-use crate::compiler::ir::{Oper};
 use crate::util::graph::{DirectedGraph, Graph};
 
 use std::cell::RefCell;
@@ -16,8 +16,8 @@ type StatementIndex = usize;
 #[derive(Clone)]
 pub struct BasicBlock {
     pub statements: Vec<Statement>,
-    label: Option<Stmt>,
-    goto: Option<Stmt>,
+    pub label: Option<Stmt>,
+    pub goto: Option<Stmt>,
 }
 
 impl BasicBlock {
@@ -31,7 +31,8 @@ impl BasicBlock {
 
     pub fn label(&self) -> Option<usize> {
         match self.label {
-            Some(Stmt::Label(label)) => Some(label),
+            // NamedLabel could cause problems
+            Some(Stmt::Label(label)) | Some(Stmt::NamedLabel(label)) => Some(label),
             _ => None,
         }
     }
@@ -69,6 +70,7 @@ impl fmt::Debug for BasicBlock {
             None => writeln!(f, "{}:\tNone", i)?,
         };
         writeln!(f)?;
+        i += 1;
         Ok(())
     }
 }
@@ -84,9 +86,10 @@ pub struct CFG {
     pub uses: HashMap<Oper, HashSet<StatementIndex>>,
     pub def: HashMap<Oper, HashSet<StatementIndex>>,
 
+    pub stack_offset: usize,
+
     // Dominators
-    pub dom_ctx: DominatorContext
-    ,
+    pub dom_ctx: DominatorContext,
     // Dataflow Analysis
     // http://www.cs.cmu.edu/afs/cs/academic/class/15745-s06/web/handouts/04.pdf
 }
@@ -97,8 +100,13 @@ impl CFG {
         let mut statements: Vec<Statement> = vec![];
 
         for bb in &self.blocks {
-            match &bb.label() {
-                Some(label) => statements.push(Rc::new(RefCell::new(Stmt::Label(*label)))),
+            match &bb.label {
+                Some(Stmt::Label(label)) => {
+                    statements.push(Rc::new(RefCell::new(Stmt::Label(*label))))
+                }
+                Some(Stmt::NamedLabel(label)) => {
+                    statements.push(Rc::new(RefCell::new(Stmt::NamedLabel(*label))))
+                }
                 _ => (),
             }
             for statement in &bb.statements {
@@ -119,7 +127,7 @@ impl CFG {
                 stmt.borrow_mut().replace_all_oper_def_with(orig, new);
                 stmt.borrow_mut().replace_all_oper_use_with(orig, new);
             }
-            
+
             match &mut bb.goto {
                 Some(stmt) => {
                     stmt.replace_all_oper_use_with(orig, new);
@@ -133,8 +141,10 @@ impl CFG {
 // Ah... this monster method to convert tac to a cfg.
 // This is my 5th iteration of this method and I still dont like it.
 // Dont even try to read it just know it works, probably.
-impl From<&Vec<Stmt>> for CFG {
-    fn from(linear_code: &Vec<Stmt>) -> Self {
+impl From<&(Vec<Stmt>, usize)> for CFG {
+    fn from(transformed_code: &(Vec<Stmt>, usize)) -> Self {
+        let (linear_code, stack_offset) = transformed_code;
+
         let mut label_count = 0;
         let mut blocks: Vec<BasicBlock> = vec![];
         let mut current_block_statements: Vec<Statement> = vec![];
@@ -151,7 +161,10 @@ impl From<&Vec<Stmt>> for CFG {
                     label_count = max(label_count, *label + 1);
                     blabel = Some(statement.clone());
                 }
-                Stmt::Jump(_) | Stmt::CJump(_, _) => {
+                Stmt::NamedLabel(_) => {
+                    blabel = Some(statement.clone());
+                }
+                Stmt::Jump(_) | Stmt::JumpNamed(_) | Stmt::CJump(_, _) => {
                     bgoto = Some(statement.clone());
 
                     let block = BasicBlock {
@@ -188,11 +201,16 @@ impl From<&Vec<Stmt>> for CFG {
 
         let mut graph: DirectedGraph<usize> = DirectedGraph::new();
         // Maps labels back to their respective blocks
-        let mut label_to_block: Vec<usize> = vec![0; blocks.len()];
+        let mut label_to_block: HashMap<usize, usize> = HashMap::new();
 
+
+        
         for i in 0..blocks.len() {
             graph.insert(i);
-            label_to_block[blocks[i].label().unwrap()] = i;
+            // label_to_block.insert(blocks[i].label().unwrap(), i);
+            if let Some(b) = blocks[i].label() {
+                label_to_block.insert(b, i);
+            }
         }
 
         for b in 0..blocks.len() {
@@ -200,13 +218,13 @@ impl From<&Vec<Stmt>> for CFG {
 
             match goto {
                 Some(Stmt::CJump(_, label)) => {
-                    let block_containing_label = label_to_block[*label];
-                    graph.create_edge(b, block_containing_label);
+                    let block_containing_label = label_to_block.get(label).unwrap();
+                    graph.create_edge(b, *block_containing_label);
                     graph.create_edge(b, b + 1);
                 }
                 Some(Stmt::Jump(label)) => {
-                    let block_containing_label = label_to_block[*label];
-                    graph.create_edge(b, block_containing_label);
+                    let block_containing_label = label_to_block.get(label).unwrap();
+                    graph.create_edge(b, *block_containing_label);
                 }
                 _ => (),
             }
@@ -218,11 +236,12 @@ impl From<&Vec<Stmt>> for CFG {
             dom_ctx: DominatorContext::default(),
             uses,
             def,
+            stack_offset: *stack_offset,
         }
     }
 }
 
-impl fmt::Display for CFG {
+impl fmt::Debug for CFG {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let mut i = 0;
         for node in &self.blocks {
@@ -237,7 +256,7 @@ impl fmt::Display for CFG {
             }
             match &node.goto {
                 Some(goto) => writeln!(f, "{}:\t\t{:?}", i, goto)?,
-                None => writeln!(f, "{}:\t\tgoto _PGRM_END", i)?,
+                None => writeln!(f, "")?,
             };
             writeln!(f)?;
             i += 1;

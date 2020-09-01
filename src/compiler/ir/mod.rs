@@ -18,12 +18,21 @@ type Version = usize;
 #[derive(Clone, PartialEq)]
 pub enum Stmt {
     Tac(Oper, Expr),
+    Expr(Expr),
     Label(Label),
     NamedLabel(Label),
     Jump(Label),
+    JumpNamed(Label),
     CJump(Expr, Label),
     Call(Interned, Arity),
+
+    StackPushAllReg,
+    StackPopAllReg,
+
     StackPush(Oper),
+
+    Return(Oper),
+
     //  Special pseudo-instruction for SSA destruction
     //  See SSA-Book p. 36
     ParallelCopy(Vec<Rc<RefCell<Stmt>>>),
@@ -68,6 +77,7 @@ impl Stmt {
     pub fn used(&self) -> Vec<Oper> {
         match self {
             Stmt::Tac(_, rval) => rval.oper_used(),
+            Stmt::Expr(expr) => expr.oper_used(),
             Stmt::CJump(cond, _) => cond.oper_used(),
             Stmt::StackPush(oper) => vec![*oper],
             Stmt::ParallelCopy(copies) => {
@@ -77,6 +87,11 @@ impl Stmt {
                 }
                 v
             }
+            Stmt::Return(oper) => match *oper {
+                Oper::Var(_, _) => vec![*oper],
+                Oper::Temp(_, _) => vec![*oper],
+                _ => vec![],
+            },
             _ => vec![],
         }
     }
@@ -84,6 +99,13 @@ impl Stmt {
     pub fn replace_all_oper_def_with(&mut self, a: &Oper, b: &Oper) -> bool {
         match self {
             Stmt::Tac(lval, _) => lval.replace_oper_with(a, b),
+            Stmt::ParallelCopy(copies) => {
+                let mut res: bool = true;
+                for copy in copies {
+                    res &= copy.borrow_mut().replace_all_oper_def_with(a, b);
+                }
+                res
+            }
             _ => false,
         }
     }
@@ -91,8 +113,17 @@ impl Stmt {
     pub fn replace_all_oper_use_with(&mut self, a: &Oper, b: &Oper) -> bool {
         match self {
             Stmt::Tac(_, rval) => rval.replace_oper_with(a, b),
+            Stmt::Expr(expr) => expr.replace_oper_with(a, b),
             Stmt::CJump(cond, _) => cond.replace_oper_with(a, b),
             Stmt::StackPush(oper) => oper.replace_oper_with(a, b),
+            Stmt::ParallelCopy(copies) => {
+                let mut res: bool = true;
+                for copy in copies {
+                    res &= copy.borrow_mut().replace_all_oper_use_with(a, b);
+                }
+                res
+            }
+            Stmt::Return(oper) => oper.replace_oper_with(a, b),
             _ => false,
         }
     }
@@ -112,6 +143,7 @@ impl Stmt {
     pub fn replace_oper_use_with_ssa(&mut self, value: Oper, ssa: usize) {
         match self {
             Stmt::Tac(_, rval) => rval.replace_with_ssa(value, ssa),
+            Stmt::Expr(expr) => expr.replace_with_ssa(value, ssa),
             Stmt::CJump(cond, _) => cond.replace_with_ssa(value, ssa),
             Stmt::StackPush(oper) => oper.replace_with_ssa(value, ssa),
             Stmt::ParallelCopy(copies) => {
@@ -119,6 +151,7 @@ impl Stmt {
                     copy.borrow_mut().replace_oper_use_with_ssa(value, ssa);
                 }
             }
+            Stmt::Return(oper) => oper.replace_with_ssa(value, ssa),
             _ => (),
         }
     }
@@ -152,8 +185,10 @@ impl fmt::Debug for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
             Stmt::Tac(lval, rval) => write!(f, "{:?} = {:?}", lval, rval),
-            Stmt::Label(label) => write!(f, "_L{:?}:", label),
+            Stmt::Label(label) => write!(f, "_L{}:", label),
+            Stmt::NamedLabel(label) => write!(f, "_{}:", get_string(*label)),
             Stmt::Jump(label) => write!(f, "goto _L{:?}", label),
+            Stmt::JumpNamed(label) => write!(f, "goto _L{:?}", get_string(*label)),
             Stmt::CJump(cond, label) => write!(f, "if {:?} goto _L{:?}", cond, label),
             Stmt::ParallelCopy(copies) => {
                 for copy in copies {
@@ -161,9 +196,12 @@ impl fmt::Debug for Stmt {
                 }
                 Ok(())
             }
+            Stmt::StackPushAllReg => write!(f, "_push all"),
+            Stmt::StackPopAllReg => write!(f, "_pop all"),
             Stmt::StackPush(rval) => write!(f, "_push {:?}", rval),
             Stmt::Call(sym, arity) => write!(f, "call {}({})", get_string(*sym), arity),
-            _ => unimplemented!(),
+            Stmt::Return(oper) => write!(f, "ret {:?}", oper),
+            Stmt::Expr(expr) => write!(f, "{:?}", expr),
         }
     }
 }
@@ -314,7 +352,12 @@ pub enum Oper {
     Temp(Sym, Version),
     Constant(Constant),
 
+    StackPop,
+
+    Call(Sym, Arity),
+
     Register(usize),
+    ReturnValue,
     StackLocation(usize),
 }
 
@@ -358,9 +401,12 @@ impl fmt::Debug for Oper {
         match self {
             Oper::Register(reg) => write!(f, "${}", reg),
             Oper::StackLocation(offset) => write!(f, "sp[-{}]", offset),
+            Oper::StackPop => write!(f, "_pop"),
+            Oper::ReturnValue => write!(f, "$rv"),
             Oper::Var(value, ssa) => write!(f, "{}.{}", get_string(*value), ssa),
             Oper::Temp(value, ssa) => write!(f, "_t{}.{}", value, ssa),
             Oper::Constant(c) => write!(f, "{}", c),
+            Oper::Call(sym, arity) => write!(f, "call _{}({})", get_string(*sym), arity),
         }
     }
 }
