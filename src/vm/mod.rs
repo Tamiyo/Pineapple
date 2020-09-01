@@ -18,7 +18,7 @@ pub struct VM {
     /**
      *  [OpCode Pointer]
      *
-     *  Points to the current instruction being executed.
+     *  Points to the current opcode being executed.
      */
     ip: usize,
 
@@ -110,8 +110,8 @@ impl VM {
     }
 
     /**
-     *  Dispatches the current instruction, executing the specified
-     *  virtual machine operations that align with each instruction.
+     *  Dispatches the current opcode, executing the specified
+     *  virtual machine operations that align with each opcode.
      *
      *  Returns:
      *      Ok(()) : Execution had no problems.
@@ -123,11 +123,11 @@ impl VM {
             self.stack_push(Constant::None);
         }
 
-        let instructions = &compiler_context.instructions;
+        let opcodes = &compiler_context.opcodes;
         loop {
-            let instruction = &instructions[self.ip];
+            let opcode = &opcodes[self.ip];
 
-            match instruction {
+            match opcode {
                 OpCode::LABEL(_) => (),
                 OpCode::MOV(or, ir) => {
                     self.store_ir(or, ir);
@@ -181,31 +181,6 @@ impl VM {
                     self.store_constant(or, res);
                 }
 
-                // OpCode::AND(or, ir1, ir2) => {
-                //     let a = self.from_input_register(ir1);
-                //     let b = self.from_input_register(ir2);
-
-                //     match (a, b) {
-                //         (Constant::Boolean(a), Constant::Boolean(b)) => {
-                //             let res = Constant::Boolean(a && b);
-                //             self.store_constant(or, res);
-                //         }
-                //         _ => panic!("And can only be between two bools"),
-                //     }
-                // }
-
-                // OpCode::OR(or, ir1, ir2) => {
-                //     let a = self.from_input_register(ir1);
-                //     let b = self.from_input_register(ir2);
-
-                //     match (a, b) {
-                //         (Constant::Boolean(a), Constant::Boolean(b)) => {
-                //             let res = Constant::Boolean(a || b);
-                //             self.store_constant(or, res);
-                //         }
-                //         _ => panic!("And can only be between two bools"),
-                //     }
-                // }
                 OpCode::NEQ(or, ir1, ir2) => {
                     let a = self.from_input_register(ir1);
                     let b = self.from_input_register(ir2);
@@ -325,8 +300,7 @@ impl VM {
                         }
 
                         println!("");
-                    }
-                    else {
+                    } else {
                         panic!("function doesn't exist")
                     }
                 }
@@ -341,7 +315,7 @@ impl VM {
                 OpCode::HLT => {
                     break;
                 }
-                _ => unimplemented!("{:?} not implemented", instruction),
+                _ => unimplemented!("{:?} not implemented", opcode),
             }
 
             self.ip += 1;

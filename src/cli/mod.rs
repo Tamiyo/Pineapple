@@ -111,7 +111,7 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     let compiler_context = compile_ir(cfgs);
 
     if args.debug {
-        for (index, instr) in compiler_context.instructions.iter().enumerate() {
+        for (index, instr) in compiler_context.opcodes.iter().enumerate() {
             println!("{}:\t{:?}", index, instr);
         }
     }
