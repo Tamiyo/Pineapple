@@ -104,17 +104,12 @@ impl LinearCodeTransformer {
     pub fn translate(&mut self, ast: Vec<ast::Stmt>) -> Vec<Vec<Stmt>> {
         self.block.push(Stmt::Label(0));
         for stmt in &ast {
-            if let ast::Stmt::Function(_, _, _) = stmt {
+            if let ast::Stmt::Function(function_name, args, block) = stmt {
             } else {
                 self.translate_statement(stmt);
             }
         }
 
-        if !self.block.is_empty() {
-            // if let Stmt::Jump(j) = self.block.last().unwrap() {
-            //     self.block.push(Stmt::Label(*j));
-            // }
-        }
         let block = self.block.clone();
         self.statements.push(block);
 

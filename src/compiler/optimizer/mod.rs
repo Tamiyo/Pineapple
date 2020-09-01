@@ -1,13 +1,3 @@
-
-use crate::{
-    bytecode::constant::Constant,
-    compiler::ir::{Expr, Oper, Stmt},
-};
-use core::cell::RefCell;
-use std::rc::Rc;
-
-type Statement = Rc<RefCell<Stmt>>;
-
 // TODO :- Implement the following optimizations at some point in the compilation process.
 //         Ideally Optimization = fn(CFG) : transform the cfg in some way
 

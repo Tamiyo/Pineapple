@@ -86,23 +86,22 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     let mut lcs = LinearCodeTransformer::new();
     let linear_code_blocks = lcs.translate(ast);
 
+    let mut cfgs: Vec<CFG> = vec![];
+
     for linear_code in linear_code_blocks {
         let mut cfg = CFG::from(&linear_code);
 
         compute_dominator_context(&mut cfg);
         construct_ssa(&mut cfg);
 
-        if args.debug {
-            println!("::CFG::");
-            println!("{}", cfg);
-        }
-
-        destruct_ssa(&mut cfg);
-
         // if args.debug {
         //     println!("::CFG::");
         //     println!("{}", cfg);
         // }
+
+        // Optimizations go here
+
+        destruct_ssa(&mut cfg);
 
         register_allocation(&mut cfg);
 
@@ -110,6 +109,8 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
             println!("::CFG::");
             println!("{}", cfg);
         }
+        
+        // // TODO remove this, only here for testing
         let compiler_context = compile_ir(&mut cfg);
 
         let mut vm = VM::new();
@@ -117,6 +118,8 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
             Ok(()) => (),
             Err(e) => panic!(e),
         };
+
+        cfgs.push(cfg);
     }
 
     Ok(())

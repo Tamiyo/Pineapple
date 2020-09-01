@@ -79,6 +79,7 @@ impl VM {
     fn store_constant(&mut self, or: &OR, constant: Constant) {
         match or {
             OR::REG(or) => self.r[*or] = constant,
+            OR::STACK(ptr) => self.stack[self.sp - *ptr] = constant,
             _ => unimplemented!(),
         }
     }
@@ -106,7 +107,7 @@ impl VM {
      */
     pub fn dispatch(&mut self, compiler_context: &CompilerContext) -> Result<(), String> {
 
-        // Reserve space on the stack for overflow'd variables or something
+        // Reserve space on the stack for overflow'd variable allocations
         for _ in 0..(compiler_context.stack_offset + 1) {
             self.stack_push(Constant::None);
         }

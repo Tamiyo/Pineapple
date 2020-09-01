@@ -61,7 +61,7 @@ fn compute_live_intervals(cfg: &CFG) -> Vec<Interval> {
     intervals.values().cloned().collect::<Vec<Interval>>()
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct AllocState {
     active: Vec<Interval>,
     registers: IndexSet<usize>,
@@ -117,8 +117,8 @@ fn linear_scan_register_allocation(cfg: &CFG) -> AllocState {
         let spill = state.active.last().unwrap();
 
         if spill.end > i.end {
-            let spilled = state.register.get(&spill.oper).unwrap();
-            state.register.insert(i.oper, *spilled);
+            let spilled = *state.register.get(&spill.oper).unwrap();
+            state.register.insert(i.oper, spilled);
             state.register.remove(&spill.oper);
             state.location.insert(spill.oper, 0);
             state.active.pop();

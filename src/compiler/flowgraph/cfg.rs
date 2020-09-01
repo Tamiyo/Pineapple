@@ -69,7 +69,6 @@ impl fmt::Debug for BasicBlock {
             None => writeln!(f, "{}:\tNone", i)?,
         };
         writeln!(f)?;
-        i += 1;
         Ok(())
     }
 }

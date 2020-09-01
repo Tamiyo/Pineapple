@@ -1,7 +1,9 @@
 use crate::bytecode::constant::Constant;
 use crate::bytecode::string_intern::get_string;
 use crate::parser::{binop::BinOp, relop::RelOp};
+use core::cell::RefCell;
 use std::cmp::Eq;
+use std::rc::Rc;
 use std::{fmt, hash::Hash};
 
 pub mod ssa;
@@ -24,7 +26,7 @@ pub enum Stmt {
     StackPush(Oper),
     //  Special pseudo-instruction for SSA destruction
     //  See SSA-Book p. 36
-    ParallelCopy,
+    ParallelCopy(Vec<Rc<RefCell<Stmt>>>),
 }
 
 impl Stmt {
@@ -52,6 +54,13 @@ impl Stmt {
                 Oper::Var(_, _) | Oper::Temp(_, _) => vec![*lval],
                 _ => vec![],
             },
+            Stmt::ParallelCopy(copies) => {
+                let mut v = vec![];
+                for copy in copies {
+                    v.extend(copy.borrow().def());
+                }
+                v
+            }
             _ => vec![],
         }
     }
@@ -61,6 +70,13 @@ impl Stmt {
             Stmt::Tac(_, rval) => rval.oper_used(),
             Stmt::CJump(cond, _) => cond.oper_used(),
             Stmt::StackPush(oper) => vec![*oper],
+            Stmt::ParallelCopy(copies) => {
+                let mut v = vec![];
+                for copy in copies {
+                    v.extend(copy.borrow().used());
+                }
+                v
+            }
             _ => vec![],
         }
     }
@@ -75,17 +91,21 @@ impl Stmt {
     pub fn replace_all_oper_use_with(&mut self, a: &Oper, b: &Oper) -> bool {
         match self {
             Stmt::Tac(_, rval) => rval.replace_oper_with(a, b),
-            Stmt::CJump(cond, _) => {
-                cond.replace_oper_with(a, b)
-            }
+            Stmt::CJump(cond, _) => cond.replace_oper_with(a, b),
             Stmt::StackPush(oper) => oper.replace_oper_with(a, b),
             _ => false,
         }
     }
 
     pub fn replace_oper_def_with_ssa(&mut self, value: Oper, ssa: usize) {
-        if let Stmt::Tac(lval, _) = self {
-            lval.replace_with_ssa(value, ssa)
+        match self {
+            Stmt::Tac(lval, _) => lval.replace_with_ssa(value, ssa),
+            Stmt::ParallelCopy(copies) => {
+                for copy in copies {
+                    copy.borrow_mut().replace_oper_def_with_ssa(value, ssa);
+                }
+            }
+            _ => (),
         }
     }
 
@@ -94,6 +114,11 @@ impl Stmt {
             Stmt::Tac(_, rval) => rval.replace_with_ssa(value, ssa),
             Stmt::CJump(cond, _) => cond.replace_with_ssa(value, ssa),
             Stmt::StackPush(oper) => oper.replace_with_ssa(value, ssa),
+            Stmt::ParallelCopy(copies) => {
+                for copy in copies {
+                    copy.borrow_mut().replace_oper_use_with_ssa(value, ssa);
+                }
+            }
             _ => (),
         }
     }
@@ -130,7 +155,12 @@ impl fmt::Debug for Stmt {
             Stmt::Label(label) => write!(f, "_L{:?}:", label),
             Stmt::Jump(label) => write!(f, "goto _L{:?}", label),
             Stmt::CJump(cond, label) => write!(f, "if {:?} goto _L{:?}", cond, label),
-            Stmt::ParallelCopy => write!(f, "? = ?"),
+            Stmt::ParallelCopy(copies) => {
+                for copy in copies {
+                    write!(f, "(p) {:?}", *copy.borrow())?;
+                }
+                Ok(())
+            }
             Stmt::StackPush(rval) => write!(f, "_push {:?}", rval),
             Stmt::Call(sym, arity) => write!(f, "call {}({})", get_string(*sym), arity),
             _ => unimplemented!(),
