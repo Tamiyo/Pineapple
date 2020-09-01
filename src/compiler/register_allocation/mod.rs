@@ -46,11 +46,8 @@ fn compute_live_intervals(cfg: &CFG) -> Vec<Interval> {
             }
 
             for used in statement.used() {
-                match intervals.entry(used) {
-                    Entry::Occupied(mut entry) => {
-                        entry.get_mut().end = s;
-                    }
-                    _ => (),
+                if let Entry::Occupied(mut entry) = intervals.entry(used) {
+                    entry.get_mut().end = s;
                 }
             }
 

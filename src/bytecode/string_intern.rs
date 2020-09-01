@@ -43,11 +43,3 @@ pub fn intern_string(s: String) -> InternIndex {
 pub fn get_string(i: usize) -> String {
     INTERNER.with(|interner| interner.borrow().get(i))
 }
-
-pub fn get_intern_map() -> String {
-    let mut s: String = String::new();
-    INTERNER.with(|interner| for (k, v) in &interner.borrow().map {
-        s.push_str(format!("{} = {:?}, ", k, v).as_str());
-    });
-    s
-}

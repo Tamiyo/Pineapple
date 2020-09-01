@@ -311,24 +311,21 @@ impl VM {
                 OpCode::CALL(intern, arity) => {
                     let name = get_string(*intern);
                     if name == "print" {
-                        let mut values = vec![];
-                        for _ in 0..*arity {
+                        let mut values = vec![Constant::None; *arity];
+                        for i in 0..*arity {
                             let value = self
                                 .stack
                                 .pop()
                                 .expect("The stack should have a value here!");
-                            values.push(value);
+                            values[i] = value;
                         }
 
                         for value in values.iter().rev() {
                             print!("{} ", value);
                         }
 
-                        print!("\n");
+                        println!("");
                     }
-                    // else if compiler_context.named_labels.contains_key(intern) {
-                    //     self.ip = compiler_context.named_labels[intern];
-                    // }
                     else {
                         panic!("function doesn't exist")
                     }

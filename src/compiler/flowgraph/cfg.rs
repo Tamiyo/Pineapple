@@ -70,7 +70,6 @@ impl fmt::Debug for BasicBlock {
             None => writeln!(f, "{}:\tNone", i)?,
         };
         writeln!(f)?;
-        i += 1;
         Ok(())
     }
 }
@@ -112,9 +111,9 @@ impl CFG {
             for statement in &bb.statements {
                 statements.push(Rc::clone(statement));
             }
-            match &bb.goto {
-                Some(stmt) => statements.push(Rc::new(RefCell::new(stmt.clone()))),
-                _ => (),
+
+            if let Some(stmt) = &bb.goto {
+                statements.push(Rc::new(RefCell::new(stmt.clone())))
             }
         }
 
@@ -128,11 +127,8 @@ impl CFG {
                 stmt.borrow_mut().replace_all_oper_use_with(orig, new);
             }
 
-            match &mut bb.goto {
-                Some(stmt) => {
-                    stmt.replace_all_oper_use_with(orig, new);
-                }
-                _ => (),
+            if let Some(stmt) = &mut bb.goto {
+                stmt.replace_all_oper_use_with(orig, new);
             }
         }
     }
@@ -203,17 +199,14 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
         // Maps labels back to their respective blocks
         let mut label_to_block: HashMap<usize, usize> = HashMap::new();
 
-
-        
-        for i in 0..blocks.len() {
+        for (i, _) in blocks.iter().enumerate() {
             graph.insert(i);
-            // label_to_block.insert(blocks[i].label().unwrap(), i);
             if let Some(b) = blocks[i].label() {
                 label_to_block.insert(b, i);
             }
         }
 
-        for b in 0..blocks.len() {
+        for (b, _) in blocks.iter().enumerate() {
             let goto = &blocks[b].goto;
 
             match goto {
@@ -256,7 +249,7 @@ impl fmt::Debug for CFG {
             }
             match &node.goto {
                 Some(goto) => writeln!(f, "{}:\t\t{:?}", i, goto)?,
-                None => writeln!(f, "")?,
+                None => writeln!(f)?,
             };
             writeln!(f)?;
             i += 1;

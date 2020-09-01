@@ -31,11 +31,7 @@ fn insert_phi_functions(cfg: &mut CFG) {
             let x = w.pop().unwrap();
             for y in &cfg.dom_ctx.domf[x] {
                 if !f.contains(&y) {
-                    let mut phivec: Vec<(Oper, usize)> = Vec::new();
-
-                    for _ in &cfg.graph.pred[y] {
-                        phivec.push((*v, 0));
-                    }
+                    let phivec: Vec<(Oper, usize)> = vec![(*v, 0); cfg.graph.pred[y].len()];
 
                     let statement = Stmt::Tac(*v, Expr::Phi(phivec));
                     cfg.blocks[*y].insert_at_beginning(statement);
@@ -140,13 +136,10 @@ fn rename(
     }
 
     for (x, domi) in cfg.dom_ctx.idom.clone().iter().enumerate() {
-        match domi {
-            Some(domi) => {
-                if *domi == n {
-                    rename(cfg, x, count, stack)
-                }
+        if let Some(domi) = domi {
+            if *domi == n {
+                rename(cfg, x, count, stack);
             }
-            _ => (),
         }
     }
 
@@ -179,7 +172,7 @@ pub fn destruct_ssa(cfg: &mut CFG) {
     flatten_parallel_copies(cfg);
 }
 
-// Experimental - Adv ssa destruction to 
+// Experimental - Adv ssa destruction to
 fn convert_to_conventional_ssa(cfg: &mut CFG) {
     for bb in &mut cfg.blocks {
         bb.insert_at_beginning(Stmt::ParallelCopy(vec![]));
@@ -189,47 +182,42 @@ fn convert_to_conventional_ssa(cfg: &mut CFG) {
     for b0_ind in 0..cfg.blocks.len() {
         let b0 = &cfg.blocks[b0_ind];
         // let mut to_remove = vec![];
-        for (index, statement) in b0.statements.iter().enumerate() {
-            match &mut *statement.borrow_mut() {
-                Stmt::Tac(a0, Expr::Phi(args)) => {
-                    for (ai, bi) in args.iter_mut() {
-                        let pci = cfg.blocks[*bi].statements.last().unwrap();
+        for (_index, statement) in b0.statements.iter().enumerate() {
+            if let Stmt::Tac(a0, Expr::Phi(args)) = &mut *statement.borrow_mut() {
+                for (ai, bi) in args.iter_mut() {
+                    let pci = cfg.blocks[*bi].statements.last().unwrap();
 
-                        let ai_prime = match ai {
-                            Oper::Var(value, _) => Oper::Var(*value, 0),
-                            // Oper::Temp(value, _) => Oper::Var(*value, 0),
-                            _ => panic!("Expected var in phi function"),
-                        };
-
-                        // pci.replace(Stmt::Tac(ai_prime, Expr::Oper(*ai)));
-                        match &mut *pci.borrow_mut() {
-                            Stmt::ParallelCopy(pcopy) => pcopy
-                                .push(Rc::new(RefCell::new(Stmt::Tac(ai_prime, Expr::Oper(*ai))))),
-                            _ => panic!(""),
-                        }
-                        *ai = ai_prime;
-                    }
-                    // begin
-                    let pc0 = b0.statements.first().unwrap();
-                    let a0_prime = match a0 {
+                    let ai_prime = match ai {
                         Oper::Var(value, _) => Oper::Var(*value, 0),
                         // Oper::Temp(value, _) => Oper::Var(*value, 0),
                         _ => panic!("Expected var in phi function"),
                     };
 
-                    // pc0.replace(Stmt::Tac(*a0, Expr::Oper(a0_prime)));
-                    match &mut *pc0.borrow_mut() {
+                    // pci.replace(Stmt::Tac(ai_prime, Expr::Oper(*ai)));
+                    match &mut *pci.borrow_mut() {
                         Stmt::ParallelCopy(pcopy) => {
-                            pcopy.push(Rc::new(RefCell::new(Stmt::Tac(*a0, Expr::Oper(a0_prime)))))
+                            pcopy.push(Rc::new(RefCell::new(Stmt::Tac(ai_prime, Expr::Oper(*ai)))))
                         }
-                        _ => panic!("expected pc0 to be a parallel copy"),
+                        _ => panic!(""),
                     }
-                    *a0 = a0_prime;
-
-                    // coalesce
-                    // to_remove.push(index);
+                    *ai = ai_prime;
                 }
-                _ => (),
+                // begin
+                let pc0 = b0.statements.first().unwrap();
+                let a0_prime = match a0 {
+                    Oper::Var(value, _) => Oper::Var(*value, 0),
+                    // Oper::Temp(value, _) => Oper::Var(*value, 0),
+                    _ => panic!("Expected var in phi function"),
+                };
+
+                // pc0.replace(Stmt::Tac(*a0, Expr::Oper(a0_prime)));
+                match &mut *pc0.borrow_mut() {
+                    Stmt::ParallelCopy(pcopy) => {
+                        pcopy.push(Rc::new(RefCell::new(Stmt::Tac(*a0, Expr::Oper(a0_prime)))))
+                    }
+                    _ => panic!("expected pc0 to be a parallel copy"),
+                }
+                *a0 = a0_prime;
             }
         }
 
@@ -249,17 +237,14 @@ fn remove_phi_functions(cfg: &mut CFG) {
         let b0 = &cfg.blocks[b0_ind];
         let mut to_remove = vec![];
         for (index, statement) in b0.statements.clone().iter().enumerate() {
-            match &mut *statement.borrow_mut() {
-                Stmt::Tac(a0, Expr::Phi(args)) => {
-                    for (ai, bi) in args {
-                        let stmt = Stmt::Tac(*a0, Expr::Oper(*ai));
-                        cfg.blocks[*bi].insert_at_end(stmt);
-                    }
-
-                    // remove_phi_func
-                    to_remove.push(index);
+            if let Stmt::Tac(a0, Expr::Phi(args)) = &mut *statement.borrow_mut() {
+                for (ai, bi) in args {
+                    let stmt = Stmt::Tac(*a0, Expr::Oper(*ai));
+                    cfg.blocks[*bi].insert_at_end(stmt);
                 }
-                _ => (),
+
+                // remove_phi_func
+                to_remove.push(index);
             }
         }
 
@@ -296,11 +281,7 @@ fn sequence_parallel_copy(pcopy: &mut Vec<Rc<RefCell<Stmt>>>) {
             .iter()
             .filter(|stmt| {
                 if let Stmt::Tac(lval, Expr::Oper(rval)) = *stmt.borrow() {
-                    if lval == rval {
-                        true
-                    } else {
-                        false
-                    }
+                    lval == rval
                 } else {
                     false
                 }
@@ -315,13 +296,7 @@ fn sequence_parallel_copy(pcopy: &mut Vec<Rc<RefCell<Stmt>>>) {
         pcopy.clone().iter().enumerate().all(|(i, stmt1)| {
             if let Stmt::Tac(b1, Expr::Oper(a)) = &mut *stmt1.borrow_mut() {
                 let cond = pcopy.iter().find(|stmt2| match &*stmt2.borrow() {
-                    Stmt::Tac(c, Expr::Oper(b2)) => {
-                        if a != c && b1 == b2 {
-                            true
-                        } else {
-                            false
-                        }
-                    }
+                    Stmt::Tac(c, Expr::Oper(b2)) => a != c && b1 == b2,
                     _ => false,
                 });
 
@@ -329,19 +304,17 @@ fn sequence_parallel_copy(pcopy: &mut Vec<Rc<RefCell<Stmt>>>) {
                     seq.push(Rc::clone(stmt1));
                     pcopy.remove(i);
                     false
+                } else if a != b1 {
+                    let aprime = match a {
+                        Oper::Var(sym, _) => Oper::Var(*sym, 0),
+                        _ => panic!(""),
+                    };
+                    let copy = Stmt::Tac(aprime, Expr::Oper(*a));
+                    seq.push(Rc::new(RefCell::new(copy)));
+                    *a = aprime;
+                    true
                 } else {
-                    if a != b1 {
-                        let aprime = match a {
-                            Oper::Var(sym, _) => Oper::Var(*sym, 0),
-                            _ => panic!(""),
-                        };
-                        let copy = Stmt::Tac(aprime, Expr::Oper(*a));
-                        seq.push(Rc::new(RefCell::new(copy)));
-                        *a = aprime;
-                        true
-                    } else {
-                        false
-                    }
+                    false
                 }
             } else {
                 false

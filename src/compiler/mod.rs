@@ -5,7 +5,6 @@ pub mod optimizer;
 pub mod register_allocation;
 pub mod transformer;
 
-use crate::bytecode::string_intern::get_string;
 use crate::bytecode::string_intern::intern_string;
 use crate::bytecode::{Label, OpCode, IR, OR};
 use crate::{
@@ -37,7 +36,7 @@ impl CompilerContext {
 }
 
 fn operand_to_ir(cctx: &mut CompilerContext, operand: &Oper) -> IR {
-    let inreg = match operand {
+    match operand {
         Oper::Register(r) => IR::REG(*r),
         Oper::Constant(c) => IR::CONST(*c),
         Oper::StackLocation(s) => {
@@ -47,8 +46,7 @@ fn operand_to_ir(cctx: &mut CompilerContext, operand: &Oper) -> IR {
         Oper::StackPop => IR::STACKPOP,
         Oper::ReturnValue => IR::RETVAL,
         _ => panic!("Unexpected Register"),
-    };
-    inreg
+    }
 }
 
 pub fn compile_ir(cfgs: Vec<CFG>) -> CompilerContext {
@@ -96,7 +94,7 @@ pub fn compile_ir(cfgs: Vec<CFG>) -> CompilerContext {
 
 fn compile_statements(
     cctx: &mut CompilerContext,
-    statements: &Vec<Rc<RefCell<Stmt>>>,
+    statements: &[Rc<RefCell<Stmt>>],
     instr_count: &mut usize,
 ) {
     for statement in statements.iter() {
@@ -110,10 +108,9 @@ fn compile_statements(
                 cctx.instructions
                     .push(OpCode::LABEL(crate::bytecode::Label::Named(*label)));
             }
-            Stmt::Jump(label) => {
-                cctx.instructions
-                    .push(OpCode::JUMP(crate::bytecode::Label::Label(*label)))
-            }
+            Stmt::Jump(label) => cctx
+                .instructions
+                .push(OpCode::JUMP(crate::bytecode::Label::Label(*label))),
             Stmt::JumpNamed(label) => {
                 cctx.instructions
                     .push(OpCode::JUMPR(crate::bytecode::Label::Named(*label)));
@@ -136,7 +133,7 @@ fn compile_statements(
             //     }
             //     _ => unimplemented!(""),
             // },
-            Stmt::Expr(expr) => cctx.instructions.push(OpCode::NOP),
+            Stmt::Expr(_expr) => cctx.instructions.push(OpCode::NOP),
             _ => unimplemented!("{:?} isnt implemented", statement),
         }
         *instr_count += 1;

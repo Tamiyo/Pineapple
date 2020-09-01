@@ -5,7 +5,7 @@ use std::fmt;
 // Dominators
 // https://www.cl.cam.ac.uk/~mr10/lengtarj.pdf
 // https://gist.github.com/yuzeh/a5e6602dfdb0db3c2130c10537db54d7
-// I don't like dealing with Options here, but idk if there is a proper way of 
+// I don't like dealing with Options here, but idk if there is a proper way of
 // having a "null" value like this. Will look into but this is unimportant.
 #[derive(Default)]
 pub struct DominatorContext {
@@ -156,19 +156,12 @@ fn compute_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
     // This is also pretty inefficient but we'll get it working first
     let mut children: Vec<Vec<usize>> = vec![vec![]; size];
     for (node, parent) in state.parent.iter().enumerate() {
-        match parent {
-            Some(parent) => {
-                children[*parent].push(node);
-            }
-            _ => (),
+        if let Some(parent) = parent {
+            children[*parent].push(node);
         }
     }
 
-    fn strict_traversal(
-        target: usize,
-        children: &Vec<Vec<usize>>,
-        strict: &mut Vec<HashSet<usize>>,
-    ) {
+    fn strict_traversal(target: usize, children: &[Vec<usize>], strict: &mut Vec<HashSet<usize>>) {
         for child in &children[target] {
             strict_traversal(*child, children, strict);
             strict[target].insert(*child);
