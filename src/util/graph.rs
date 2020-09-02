@@ -1,7 +1,6 @@
 use indexmap::{IndexMap, IndexSet};
 use std::{fmt, hash::Hash};
 
-
 // I mean, its a graph what more do you want?
 // No, its not efficient but who needs efficiency?
 // (Kidding, will update at some later stage)
@@ -47,7 +46,14 @@ impl<T: Copy + Hash + Eq> Graph<T> for DirectedGraph<T> {
 
     fn remove(&mut self, a: &T) {
         self.nodes.remove(a);
+        for pred in self.pred.get(a).unwrap() {
+            self.succ[pred].remove(a);
+        }
         self.pred.get_mut(a).unwrap().clear();
+
+        for succ in self.succ.get(a).unwrap() {
+            self.pred[succ].remove(a);
+        }
         self.succ.get_mut(a).unwrap().clear();
         self.edges.remove(a);
         for (_, v) in self.edges.iter_mut() {

@@ -20,14 +20,14 @@ pub struct VM {
      *
      *  Points to the current opcode being executed.
      */
-    ip: usize,
+    instruction_ptr: usize,
 
     /**
      *  [Frame Pointer]
      *
      *  Points to the current frame, at the top of the function call stack.
      */
-    fp: usize,
+    frame_ptr: usize,
 
     /**
      *  [Registers]
@@ -35,22 +35,22 @@ pub struct VM {
      *  p = parameters
      *  t = locals
      *
-     *  R[0]               ->  return values
-     *  R[1] ... R[p]      ->  parameter registers
-     *  R[p+1] ... R[p+t]  ->  local registers
+     *  register[0]               ->  return values
+     *  register[1] ... register[p]      ->  parameter registers
+     *  register[p+1] ... register[p+t]  ->  local registers
      */
     // TODO - Change constant to its own "VM" type (See Mango VM)
-    r: [Constant; NUM_REGISTERS],
+    register: [Constant; NUM_REGISTERS],
 
     // return value
-    rv: Constant,
+    return_value: Constant,
 
     // Return Address
-    ra: usize,
+    return_addr: usize,
 
     stack: Vec<Constant>,
 
-    sp: usize,
+    stack_ptr: usize,
 }
 
 impl VM {
@@ -61,51 +61,51 @@ impl VM {
      */
     pub fn new() -> Self {
         VM {
-            ip: 0,
-            fp: 0,
-            r: [Constant::None; NUM_REGISTERS],
-            rv: Constant::None,
-            ra: 0,
+            instruction_ptr: 0,
+            frame_ptr: 0,
+            register: [Constant::None; NUM_REGISTERS],
+            return_value: Constant::None,
+            return_addr: 0,
             stack: vec![],
-            sp: 0,
+            stack_ptr: 0,
         }
     }
 
     fn store_ir(&mut self, or: &OR, ir: &IR) {
         let constant = self.from_input_register(ir);
         match or {
-            OR::REG(or) => self.r[*or] = constant,
-            OR::STACK(ptr) => self.stack[self.sp - *ptr] = constant,
+            OR::REG(or) => self.register[*or] = constant,
+            OR::STACK(ptr) => self.stack[self.stack_ptr - *ptr] = constant,
             _ => unimplemented!(),
         }
     }
 
     fn store_constant(&mut self, or: &OR, constant: Constant) {
         match or {
-            OR::REG(or) => self.r[*or] = constant,
-            OR::STACK(ptr) => self.stack[self.sp - *ptr] = constant,
+            OR::REG(or) => self.register[*or] = constant,
+            OR::STACK(ptr) => self.stack[self.stack_ptr - *ptr] = constant,
             _ => unimplemented!(),
         }
     }
 
     fn from_input_register(&mut self, ir: &IR) -> Constant {
         match ir {
-            IR::REG(reg) => self.r[*reg],
+            IR::REG(reg) => self.register[*reg],
             IR::CONST(c) => *c,
-            IR::STACK(ptr) => self.stack[self.sp - *ptr],
+            IR::STACK(ptr) => self.stack[self.stack_ptr - *ptr],
             IR::STACKPOP => self.stack_pop(),
-            IR::RETVAL => self.rv,
+            IR::RETVAL => self.return_value,
         }
     }
 
     fn stack_push(&mut self, value: Constant) {
         self.stack.push(value);
-        self.sp += 1;
+        self.stack_ptr += 1;
     }
 
     fn stack_pop(&mut self) -> Constant {
         let constant = self.stack.pop().unwrap();
-        self.sp -= 1;
+        self.stack_ptr -= 1;
         constant
     }
 
@@ -129,7 +129,7 @@ impl VM {
         }
 
         loop {
-            let opcode = &opcodes[self.ip];
+            let opcode = &opcodes[self.instruction_ptr];
 
             match opcode {
                 OpCode::LABEL(_) => (),
@@ -235,21 +235,21 @@ impl VM {
 
                 OpCode::JUMP(label) => match label {
                     Label::Label(l) => {
-                        self.ip = compiler_context.labels[l];
+                        self.instruction_ptr = compiler_context.labels[l];
                     }
                     Label::Named(l) => {
-                        self.ip = compiler_context.named_labels[l];
+                        self.instruction_ptr = compiler_context.named_labels[l];
                     }
                 },
 
                 OpCode::JUMPR(label) => {
-                    self.ra = self.ip + 1;
+                    self.return_addr = self.instruction_ptr + 1;
                     match label {
                         Label::Label(l) => {
-                            self.ip = compiler_context.labels[l];
+                            self.instruction_ptr = compiler_context.labels[l];
                         }
                         Label::Named(l) => {
-                            self.ip = compiler_context.named_labels[l];
+                            self.instruction_ptr = compiler_context.named_labels[l];
                         }
                     }
                 }
@@ -260,10 +260,10 @@ impl VM {
                     if res {
                         match label {
                             Label::Label(l) => {
-                                self.ip = compiler_context.labels[l];
+                                self.instruction_ptr = compiler_context.labels[l];
                             }
                             Label::Named(l) => {
-                                self.ip = compiler_context.named_labels[l];
+                                self.instruction_ptr = compiler_context.named_labels[l];
                             }
                         }
                     }
@@ -273,26 +273,32 @@ impl VM {
                     let res = self.from_input_register(ir);
                     self.stack_push(res);
                 }
-
+                
+                // This is dirty for now, we can be smarter about how we save / restore registers in the future
+                // See https://courses.cs.washington.edu/courses/cse378/09wi/lectures/lec05.pdf
                 OpCode::PUSHA => {
-                    for rindex in 0..self.r.len() {
-                        self.stack_push(self.r[rindex]);
+                    for rindex in 0..self.register.len() {
+                        self.stack_push(self.register[rindex]);
                     }
-                    self.stack_push(Constant::Number(Distance::from(self.ra as f64)));
+                    self.stack_push(Constant::Number(Distance::from(self.return_addr as f64)));
                 }
 
                 OpCode::POPA => {
                     if let Constant::Number(d) = self.stack_pop() {
-                        self.ra = (Into::<f64>::into(d)) as usize;
+                        self.return_addr = (Into::<f64>::into(d)) as usize;
                     }
 
-                    for rindex in (0..self.r.len()).rev() {
+                    for rindex in (0..self.register.len()).rev() {
                         let popped = self.stack_pop();
-                        self.r[rindex] = popped;
+                        self.register[rindex] = popped;
                     }
                 }
 
+                // This is temporary, we'll either chose to use this or the JUMPR opcode
+                // The print is defentially temporary, we'll change this when we add native function bindings
                 OpCode::CALL(intern, arity) => {
+                    // Sometimes we need this because of our janky call setup
+                    // self.return_addr = self.instruction_ptr + 1;
                     let name = get_string(*intern);
                     if name == "print" {
                         let mut values = vec![Constant::None; *arity];
@@ -316,18 +322,17 @@ impl VM {
 
                 OpCode::RETURN(ir) => {
                     let res = self.from_input_register(ir);
-                    self.rv = res;
-                    self.ip = self.ra;
+                    self.return_value = res;
+                    self.instruction_ptr = self.return_addr;
                 }
                 OpCode::NOP => (),
-
                 OpCode::HLT => {
                     break;
                 }
                 _ => unimplemented!("{:?} not implemented", opcode),
             }
 
-            self.ip += 1;
+            self.instruction_ptr += 1;
         }
 
         Ok(())

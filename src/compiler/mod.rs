@@ -58,11 +58,16 @@ pub fn compile_ir(cfgs: Vec<CFG>) -> CompilerContext {
     let mut func_cfgs = vec![];
     let mut main_cfgs = vec![];
     for cfg in cfgs {
-        if let Some(Stmt::NamedLabel(name)) = cfg.blocks[0].label {
-            if intern_string("main".to_string()) == name {
-                main_cfgs.push(cfg);
-            } else {
-                func_cfgs.push(cfg);
+        if let Some(reference) = cfg.blocks[0].label.clone() {
+            match &*reference.borrow() {
+                Stmt::NamedLabel(name) => {
+                    if intern_string("main".to_string()) == *name {
+                        main_cfgs.push(cfg);
+                    } else {
+                        func_cfgs.push(cfg);
+                    }
+                }
+                _ => (),
             }
         }
     }

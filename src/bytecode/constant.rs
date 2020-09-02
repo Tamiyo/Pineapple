@@ -59,7 +59,7 @@ impl Constant {
                     let f2 = Into::<f64>::into(n2);
                     Constant::Number(Distance::from(f1 - f2))
                 }
-                _ => panic!(""),
+                _ => panic!(format!("MINUS NOT DEFINED FOR {:?} AND {:?}", self, other)),
             },
             BinOp::Slash => match (self, other) {
                 (Constant::Number(n1), Constant::Number(n2)) => {

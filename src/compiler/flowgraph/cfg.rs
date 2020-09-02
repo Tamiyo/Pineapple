@@ -1,6 +1,6 @@
 use crate::compiler::dominator::DominatorContext;
 use crate::compiler::ir::Oper;
-use crate::compiler::ir::Stmt;
+use crate::compiler::ir::{Expr, Stmt};
 use crate::util::graph::{DirectedGraph, Graph};
 
 use std::cell::RefCell;
@@ -16,8 +16,8 @@ type StatementIndex = usize;
 #[derive(Clone)]
 pub struct BasicBlock {
     pub statements: Vec<Statement>,
-    pub label: Option<Stmt>,
-    pub goto: Option<Stmt>,
+    pub label: Option<Statement>,
+    pub goto: Option<Statement>,
 }
 
 impl BasicBlock {
@@ -30,18 +30,34 @@ impl BasicBlock {
     }
 
     pub fn label(&self) -> Option<usize> {
-        match self.label {
+        match &self.label {
             // NamedLabel could cause problems
-            Some(Stmt::Label(label)) | Some(Stmt::NamedLabel(label)) => Some(label),
+            Some(reference) => match &*reference.borrow() {
+                Stmt::Label(label) | Stmt::NamedLabel(label) => Some(*label),
+                _ => None,
+            },
             _ => None,
         }
     }
 
     pub fn jump(&self) -> Option<usize> {
-        match self.label {
-            Some(Stmt::Jump(label)) | Some(Stmt::CJump(_, label)) => Some(label),
+        match &self.goto {
+            Some(reference) => match &*reference.borrow() {
+                Stmt::Jump(label) | Stmt::CJump(_, label) => Some(*label),
+                _ => None,
+            },
             _ => None,
         }
+    }
+
+    pub fn oper_defined(&self) -> Vec<Oper> {
+        let mut variables: Vec<Oper> = Vec::new();
+
+        for statement in &self.statements {
+            variables.append(&mut statement.borrow().def());
+        }
+
+        variables
     }
 
     pub fn insert_at_beginning(&mut self, statement: Stmt) {
@@ -57,7 +73,7 @@ impl fmt::Debug for BasicBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let mut i = 0;
         match &self.label {
-            Some(label) => writeln!(f, "{}:\t{:?}", i, label)?,
+            Some(label) => writeln!(f, "{}:\t{:?}", i, *label.borrow())?,
             None => writeln!(f, "{}:\tNone", i)?,
         };
         i += 1;
@@ -66,7 +82,7 @@ impl fmt::Debug for BasicBlock {
             i += 1;
         }
         match &self.goto {
-            Some(goto) => writeln!(f, "{}:\t{:?}", i, goto)?,
+            Some(goto) => writeln!(f, "{}:\t{:?}", i, *goto.borrow())?,
             None => writeln!(f, "{}:\tNone", i)?,
         };
         writeln!(f)?;
@@ -98,22 +114,40 @@ impl CFG {
     pub fn statements(&self) -> Vec<Statement> {
         let mut statements: Vec<Statement> = vec![];
 
-        for bb in &self.blocks {
-            match &bb.label {
-                Some(Stmt::Label(label)) => {
-                    statements.push(Rc::new(RefCell::new(Stmt::Label(*label))))
+        for bb in 0..self.blocks.len() {
+            let bb = &self.blocks[bb];
+            if !(bb.label == None && bb.goto == None && bb.statements.is_empty()) {
+                match &bb.label {
+                    Some(label) => statements.push(Rc::clone(label)),
+                    _ => (),
                 }
-                Some(Stmt::NamedLabel(label)) => {
-                    statements.push(Rc::new(RefCell::new(Stmt::NamedLabel(*label))))
+                for statement in &bb.statements {
+                    statements.push(Rc::clone(statement));
                 }
-                _ => (),
+
+                if let Some(stmt) = &bb.goto {
+                    statements.push(Rc::clone(stmt));
+                }
             }
-            for statement in &bb.statements {
-                statements.push(Rc::clone(statement));
+        }
+
+        statements
+    }
+
+    pub fn statements_using(&mut self, v: &Oper) -> Vec<Rc<RefCell<Stmt>>> {
+        let mut statements: Vec<Rc<RefCell<Stmt>>> = vec![];
+
+        for block in &self.blocks {
+            for statement in &block.statements {
+                if statement.borrow().used().contains(v) {
+                    statements.push(Rc::clone(statement));
+                }
             }
 
-            if let Some(stmt) = &bb.goto {
-                statements.push(Rc::new(RefCell::new(stmt.clone())))
+            if let Some(statement) = &block.goto {
+                if statement.borrow().used().contains(v) {
+                    statements.push(Rc::clone(statement));
+                }
             }
         }
 
@@ -128,9 +162,131 @@ impl CFG {
             }
 
             if let Some(stmt) = &mut bb.goto {
-                stmt.replace_all_oper_use_with(orig, new);
+                stmt.borrow_mut().replace_all_oper_use_with(orig, new);
             }
         }
+    }
+
+    pub fn remove_statement(&mut self, s: Rc<RefCell<Stmt>>) {
+        for block in &mut self.blocks {
+            let len = block.statements.len();
+            for i in 0..len {
+                if block.statements[i] == s {
+                    block.statements.remove(i);
+                    break;
+                }
+            }
+        }
+    }
+
+    pub fn remove_conditional_jump(
+        &mut self,
+        stmt: &Statement,
+        res: bool,
+        label: usize,
+    ) -> (Vec<Statement>, Option<usize>) {
+        // Find the block that the cjump belongs to
+        let block = self
+            .blocks
+            .iter()
+            .position(|b| match &b.goto {
+                Some(s) => s == stmt,
+                None => false,
+            })
+            .unwrap();
+
+        // if res is true then we jump, so we delete the fallthrough
+        let mut modified_statements = vec![];
+        if res {
+            modified_statements.append(&mut self.remove_block(block + 1));
+        }
+        // if res is false we fallthrough, so delete the other solution
+        else {
+            let block_to_remove = self
+                .blocks
+                .iter()
+                .position(|b| match b.jump() {
+                    Some(l) => {
+                        if l == label {
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    None => false,
+                })
+                .unwrap();
+                modified_statements.append(&mut self.remove_block(block_to_remove));
+        };
+
+        // Replace the statement with a straight jump
+        let jump_label = match &self.blocks[block].goto {
+            Some(stmt) => {
+                if let Stmt::CJump(_, label) = &*stmt.borrow() {
+                    Some(*label)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        (modified_statements, jump_label)
+    }
+
+    fn remove_block(&mut self, block_to_remove: usize) -> Vec<Statement> {
+        if block_to_remove == 0 || self.graph.pred[block_to_remove].len() > 0 {
+            return vec![];
+        }
+
+        // patch phi functions
+        for block in &mut self.blocks {
+            for s in 0..block.statements.len() {
+                let statement = block.statements[s].clone();
+                if let Stmt::Tac(lval, Expr::Phi(args)) = &mut *statement.borrow_mut() {
+                    for i in 0..args.len() {
+                        if args[i].1 == block_to_remove {
+                            args.remove(i);
+
+                            // Check to see if we can simplify the phi function
+                            if args.len() == 0 {
+                                block.statements.remove(s);
+                            } else if args.len() == 1 {
+                                statement.replace(Stmt::Tac(*lval, Expr::Oper(args[0].0)));
+                            }
+                            break;
+                        }
+                    }
+                };
+            }
+        }
+
+        // actual removal
+        let mut modified_statements = vec![];
+
+        self.blocks[block_to_remove].label = None;
+        self.blocks[block_to_remove].goto = None;
+        modified_statements.append(
+            &mut self.blocks[block_to_remove]
+                .statements
+                .iter()
+                .map(|s| Rc::clone(s))
+                .collect(),
+        );
+
+        let children = self.graph.succ[block_to_remove].clone();
+        self.graph.remove(&block_to_remove);
+
+        // Recursively delete any blocks that no long have and preds
+        for child in children {
+            println!("child: {:?}", child);
+            println!("pred[child]: {:?}", self.graph.pred[child]);
+            if self.graph.pred[child].is_empty() {
+                modified_statements.append(&mut self.remove_block(child));
+            }
+        }
+
+        modified_statements
     }
 }
 
@@ -145,8 +301,8 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
         let mut blocks: Vec<BasicBlock> = vec![];
         let mut current_block_statements: Vec<Statement> = vec![];
 
-        let mut blabel: Option<Stmt> = None;
-        let mut bgoto: Option<Stmt> = None;
+        let mut blabel: Option<Statement> = None;
+        let mut bgoto: Option<Statement> = None;
 
         let mut uses: HashMap<Oper, HashSet<usize>> = HashMap::new();
         let mut def: HashMap<Oper, HashSet<usize>> = HashMap::new();
@@ -155,13 +311,13 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
             match statement {
                 Stmt::Label(label) => {
                     label_count = max(label_count, *label + 1);
-                    blabel = Some(statement.clone());
+                    blabel = Some(Rc::new(RefCell::new(statement.clone())));
                 }
                 Stmt::NamedLabel(_) => {
-                    blabel = Some(statement.clone());
+                    blabel = Some(Rc::new(RefCell::new(statement.clone())));
                 }
                 Stmt::Jump(_) | Stmt::JumpNamed(_) | Stmt::CJump(_, _) => {
-                    bgoto = Some(statement.clone());
+                    bgoto = Some(Rc::new(RefCell::new(statement.clone())));
 
                     let block = BasicBlock {
                         statements: current_block_statements.clone(),
@@ -210,15 +366,18 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
             let goto = &blocks[b].goto;
 
             match goto {
-                Some(Stmt::CJump(_, label)) => {
-                    let block_containing_label = label_to_block.get(label).unwrap();
-                    graph.create_edge(b, *block_containing_label);
-                    graph.create_edge(b, b + 1);
-                }
-                Some(Stmt::Jump(label)) => {
-                    let block_containing_label = label_to_block.get(label).unwrap();
-                    graph.create_edge(b, *block_containing_label);
-                }
+                Some(reference) => match &*reference.borrow() {
+                    Stmt::CJump(_, label) => {
+                        let block_containing_label = label_to_block.get(label).unwrap();
+                        graph.create_edge(b, *block_containing_label);
+                        graph.create_edge(b, b + 1);
+                    }
+                    Stmt::Jump(label) => {
+                        let block_containing_label = label_to_block.get(label).unwrap();
+                        graph.create_edge(b, *block_containing_label);
+                    }
+                    _ => (),
+                },
                 _ => (),
             }
         }
@@ -238,21 +397,23 @@ impl fmt::Debug for CFG {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let mut i = 0;
         for node in &self.blocks {
-            match &node.label {
-                Some(label) => writeln!(f, "{}:\t{:?}", i, label)?,
-                None => writeln!(f, "{}:\tNone", i)?,
-            };
-            i += 1;
-            for statement in &node.statements {
-                writeln!(f, "{}:\t\t{:?}", i, *statement.borrow())?;
+            if !(node.label == None && node.goto == None && node.statements.is_empty()) {
+                match &node.label {
+                    Some(label) => writeln!(f, "{}:\t{:?}", i, *label.borrow())?,
+                    None => writeln!(f, "{}:\tNone", i)?,
+                };
+                i += 1;
+                for statement in &node.statements {
+                    writeln!(f, "{}:\t\t{:?}", i, *statement.borrow())?;
+                    i += 1;
+                }
+                match &node.goto {
+                    Some(goto) => writeln!(f, "{}:\t\t{:?}", i, *goto.borrow())?,
+                    None => writeln!(f)?,
+                };
+                writeln!(f)?;
                 i += 1;
             }
-            match &node.goto {
-                Some(goto) => writeln!(f, "{}:\t\t{:?}", i, goto)?,
-                None => writeln!(f)?,
-            };
-            writeln!(f)?;
-            i += 1;
         }
         Ok(())
     }

@@ -10,8 +10,8 @@
     return a * b;
 }
 
-#adder1(a, b) {
-    x = 1;
+#adder4(a, b) {
+    x = 1 + 3;
     return a + b + x;
 }
 
@@ -20,7 +20,7 @@
     y = subber(5, 3);
     z = multer(3, 7);
     q = diver(6, 5);
-    k = adder1(2, 3);
+    k = adder4(2, 3);
 
     print(x, y, z, q, k);
 }

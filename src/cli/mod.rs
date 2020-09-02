@@ -1,6 +1,7 @@
 use crate::compiler::compile_ir;
 use crate::compiler::ir::ssa::construct_ssa;
 use crate::compiler::ir::ssa::destruct_ssa;
+use crate::compiler::optimizer::constant_optimization;
 use crate::compiler::register_allocation::register_allocation;
 use crate::{
     compiler::{
@@ -91,17 +92,24 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     for linear_code in linear_code_blocks {
         let mut cfg = CFG::from(&linear_code);
 
-        if args.debug {
-            println!("::CFG::");
-            println!("{:?}", cfg);
-        }
-
         compute_dominator_context(&mut cfg);
         construct_ssa(&mut cfg);
 
         // Optimizations go here
-
         destruct_ssa(&mut cfg);
+
+        // if args.debug {
+        //     println!("::CFG::");
+        //     println!("{:?}", cfg);
+        // }
+
+        if args.optimize {
+            constant_optimization(&mut cfg);
+            if args.debug {
+                println!("::CFG OPTIMIZED::");
+                println!("{:?}", cfg);
+            }
+        }
 
         register_allocation(&mut cfg);
 
