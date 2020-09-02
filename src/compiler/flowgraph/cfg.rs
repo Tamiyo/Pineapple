@@ -240,26 +240,26 @@ impl CFG {
         }
 
         // patch phi functions
-        for block in &mut self.blocks {
-            for s in 0..block.statements.len() {
-                let statement = block.statements[s].clone();
-                if let Stmt::Tac(lval, Expr::Phi(args)) = &mut *statement.borrow_mut() {
-                    for i in 0..args.len() {
-                        if args[i].1 == block_to_remove {
-                            args.remove(i);
+        // for block in &mut self.blocks {
+        //     for s in 0..block.statements.len() {
+        //         let statement = block.statements[s].clone();
+        //         if let Stmt::Tac(lval, Expr::Phi(args)) = &mut *statement.borrow_mut() {
+        //             for i in 0..args.len() {
+        //                 if args[i].1 == block_to_remove {
+        //                     args.remove(i);
 
-                            // Check to see if we can simplify the phi function
-                            if args.len() == 0 {
-                                block.statements.remove(s);
-                            } else if args.len() == 1 {
-                                statement.replace(Stmt::Tac(*lval, Expr::Oper(args[0].0)));
-                            }
-                            break;
-                        }
-                    }
-                };
-            }
-        }
+        //                     // Check to see if we can simplify the phi function
+        //                     if args.len() == 0 {
+        //                         block.statements.remove(s);
+        //                     } else if args.len() == 1 {
+        //                         statement.replace(Stmt::Tac(*lval, Expr::Oper(args[0].0)));
+        //                     }
+        //                     break;
+        //                 }
+        //             }
+        //         };
+        //     }
+        // }
 
         // actual removal
         let mut modified_statements = vec![];
@@ -316,7 +316,7 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
                 Stmt::NamedLabel(_) => {
                     blabel = Some(Rc::new(RefCell::new(statement.clone())));
                 }
-                Stmt::Jump(_) | Stmt::JumpNamed(_) | Stmt::CJump(_, _) => {
+                Stmt::Jump(_) | Stmt::Call(_, _) | Stmt::CJump(_, _) => {
                     bgoto = Some(Rc::new(RefCell::new(statement.clone())));
 
                     let block = BasicBlock {

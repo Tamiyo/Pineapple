@@ -284,7 +284,7 @@ impl LinearCodeTransformer {
         let raw_str = self.translate_expression(expr, false);
         match raw_str {
             Oper::Var(sym, _) => {
-                self.block.push(Stmt::JumpNamed(sym));
+                self.block.push(Stmt::Call(sym, args.len()));
 
                 let label = self.new_label();
 

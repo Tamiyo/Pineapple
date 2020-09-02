@@ -119,10 +119,6 @@ fn compile_statements(
             Stmt::Jump(label) => cctx
                 .opcodes
                 .push(OpCode::JUMP(crate::bytecode::Label::Label(*label))),
-            Stmt::JumpNamed(label) => {
-                cctx.opcodes
-                    .push(OpCode::JUMPR(crate::bytecode::Label::Named(*label)));
-            }
             Stmt::CJump(cond, label) => compile_cjump(cctx, cond, label),
             Stmt::StackPush(operand) => {
                 let inreg = operand_to_ir(cctx, operand);
@@ -138,13 +134,6 @@ fn compile_statements(
                 let inreg = operand_to_ir(cctx, oper);
                 cctx.opcodes.push(OpCode::RETURN(inreg));
             }
-            // Stmt::Expr(expr) => match expr {
-            //     Expr::Oper(Oper::Call(intern, arity)) => {
-            //         cctx.opcodes.push(OpCode::CALL(*intern, *arity))
-            //     }
-            //     _ => unimplemented!(""),
-            // },
-            Stmt::Expr(_expr) => cctx.opcodes.push(OpCode::NOP),
             _ => unimplemented!("{:?} isnt implemented", statement),
         }
         *instr_count += 1;

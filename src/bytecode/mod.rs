@@ -6,6 +6,8 @@ pub mod constant;
 pub mod constant_pool;
 pub mod distance;
 pub mod string_intern;
+pub mod chunk;
+pub mod module;
 
 type InternIndex = usize;
 type Arity = usize;
@@ -72,7 +74,6 @@ pub enum OpCode {
     POPA,
 
     JUMP(Label),
-    JUMPR(Label),
 
     NOP,
 

@@ -98,15 +98,15 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
         // Optimizations go here
         destruct_ssa(&mut cfg);
 
-        // if args.debug {
-        //     println!("::CFG::");
-        //     println!("{:?}", cfg);
-        // }
-
         if args.optimize {
             constant_optimization(&mut cfg);
             if args.debug {
                 println!("::CFG OPTIMIZED::");
+                println!("{:?}", cfg);
+            }
+        } else {
+            if args.debug {
+                println!("::CFG::");
                 println!("{:?}", cfg);
             }
         }
