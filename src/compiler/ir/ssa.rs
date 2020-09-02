@@ -1,4 +1,5 @@
 use super::{Expr, Stmt};
+use crate::bytecode::string_intern::get_string;
 use crate::compiler::flowgraph::cfg::CFG;
 use crate::compiler::ir::Oper;
 use core::cell::RefCell;
@@ -96,7 +97,14 @@ fn rename(
         } else {
             for x in s.used() {
                 if let Oper::Var(_, _) = x {
-                    let i = stack[&x.as_non_ssa()].last().unwrap();
+                    // let i = match stack[&x.as_non_ssa()].last().unwrap();
+                    let i = match stack.get(&x.as_non_ssa()) {
+                        Some(s) => s.last().unwrap(),
+                        None => panic!(format!(
+                            "Undefined variable '{}'",
+                            get_string(x.as_non_ssa().0)
+                        )),
+                    };
                     s.replace_oper_use_with_ssa(x, *i);
                 }
                 // let i = stack[&x.as_non_ssa()].last().unwrap();
@@ -295,8 +303,18 @@ fn sequence_parallel_copy(pcopy: &mut Vec<Rc<RefCell<Stmt>>>) {
         // algo
         pcopy.clone().iter().enumerate().all(|(i, stmt1)| {
             if let Stmt::Tac(b1, Expr::Oper(a)) = &mut *stmt1.borrow_mut() {
-                let cond = pcopy.iter().find(|stmt2| match &*stmt2.borrow() {
-                    Stmt::Tac(c, Expr::Oper(b2)) => a != c && b1 == b2,
+                let cond = pcopy.iter().find(|stmt2| match &stmt2.try_borrow() {
+                    Ok(refer) => {
+                        if let Stmt::Tac(c, Expr::Oper(b2)) = **refer {
+                            if a != &c && b1 == &b2 {
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    }
                     _ => false,
                 });
 

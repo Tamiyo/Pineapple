@@ -10,13 +10,19 @@
     return a * b;
 }
 
+#adder1(a, b) {
+    x = 1;
+    return a + b + x;
+}
+
 #main() {
     x = adder(2, 7);
     y = subber(5, 3);
     z = multer(3, 7);
     q = diver(6, 5);
+    k = adder1(2, 3);
 
-    print(x, y, z, q);
+    print(x, y, z, q, k);
 }
 
 #diver(a, b) {

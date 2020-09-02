@@ -1,7 +1,7 @@
 use crate::bytecode::string_intern::get_string;
 use crate::compiler::CompilerContext;
 use crate::{
-    bytecode::{constant::Constant, Label, OpCode, IR, OR},
+    bytecode::{constant::Constant, distance::Distance, Label, OpCode, IR, OR},
     parser::{binop::BinOp, relop::RelOp},
 };
 
@@ -124,6 +124,10 @@ impl VM {
         }
 
         let opcodes = &compiler_context.opcodes;
+        if opcodes.is_empty() {
+            return Ok(());
+        }
+
         loop {
             let opcode = &opcodes[self.ip];
 
@@ -274,9 +278,14 @@ impl VM {
                     for rindex in 0..self.r.len() {
                         self.stack_push(self.r[rindex]);
                     }
+                    self.stack_push(Constant::Number(Distance::from(self.ra as f64)));
                 }
 
                 OpCode::POPA => {
+                    if let Constant::Number(d) = self.stack_pop() {
+                        self.ra = (Into::<f64>::into(d)) as usize;
+                    }
+
                     for rindex in (0..self.r.len()).rev() {
                         let popped = self.stack_pop();
                         self.r[rindex] = popped;

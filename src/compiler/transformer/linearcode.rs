@@ -159,7 +159,7 @@ impl LinearCodeTransformer {
                 self.translate_print_statement(args);
             }
             ast::Stmt::Return(to_return) => self.translate_return(to_return),
-            _ => unimplemented!(),
+            _ => unimplemented!()
         }
     }
 
@@ -169,10 +169,7 @@ impl LinearCodeTransformer {
                 let res = self.translate_expression(expr, false);
                 self.block.push(Stmt::Return(res))
             }
-            None => {
-                self.block
-                    .push(Stmt::Return(Oper::Constant(Constant::None)));
-            }
+            _ => panic!("this should never be null")
         }
     }
 
@@ -221,7 +218,7 @@ impl LinearCodeTransformer {
                     self.backpatch.clear();
                 }
             }
-        }
+        } 
     }
 
     fn translate_while_statement(&mut self, cond: &ast::Expr, block: &ast::Stmt) {
@@ -294,7 +291,10 @@ impl LinearCodeTransformer {
                 self.block.push(Stmt::Label(label));
                 self.block.push(Stmt::StackPopAllReg);
 
-                Oper::Call(sym, args.len())
+                let temp = self.new_temporary();
+                self.block
+                    .push(Stmt::Tac(temp, Expr::Oper(Oper::ReturnValue)));
+                temp
             }
             _ => panic!("Expected string as funciton name"),
         }
@@ -303,11 +303,9 @@ impl LinearCodeTransformer {
     fn translate_assign(&mut self, n: &usize, l: &ast::Expr) -> Oper {
         let lval = Oper::Var(*n, 0);
 
-        if let ast::Expr::Call(_, _) = l {
-            let rval = Expr::Oper(self.translate_expression(l, false));
-            self.block.push(Stmt::Expr(rval));
-            self.block
-                .push(Stmt::Tac(lval, Expr::Oper(Oper::ReturnValue)))
+        if let ast::Expr::Call(name, args) = l {
+            let temp = self.translate_call(name, args);
+            self.block.push(Stmt::Tac(lval, Expr::Oper(temp)))
         } else {
             let rval = Expr::Oper(self.translate_expression(l, false));
 

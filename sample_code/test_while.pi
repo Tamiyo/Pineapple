@@ -1,3 +1,4 @@
+// should print 1
 #main() {
     i = 1;
     j = 1;

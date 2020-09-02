@@ -45,7 +45,10 @@ fn operand_to_ir(cctx: &mut CompilerContext, operand: &Oper) -> IR {
         }
         Oper::StackPop => IR::STACKPOP,
         Oper::ReturnValue => IR::RETVAL,
-        _ => panic!("Unexpected Register"),
+        _ => panic!(format!(
+            "Expected machine instruction, got {:?} instead",
+            operand
+        )),
     }
 }
 
@@ -122,7 +125,10 @@ fn compile_statements(
             }
             Stmt::StackPushAllReg => cctx.opcodes.push(OpCode::PUSHA),
             Stmt::StackPopAllReg => cctx.opcodes.push(OpCode::POPA),
-            Stmt::Call(intern, arity) => cctx.opcodes.push(OpCode::CALL(*intern, *arity)),
+            Stmt::Call(intern, arity) => {
+                cctx.opcodes.push(OpCode::CALL(*intern, *arity));
+                cctx.opcodes.push(OpCode::NOP);
+            }
             Stmt::Return(oper) => {
                 let inreg = operand_to_ir(cctx, oper);
                 cctx.opcodes.push(OpCode::RETURN(inreg));

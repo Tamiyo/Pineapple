@@ -278,7 +278,7 @@ impl Parser {
             self.consume(Symbol::Else)?;
             Some(self.parse_block_statement()?)
         } else {
-            None
+            Some(Stmt::Block(vec![]))
         };
 
         Ok(else_block.map(Box::new))
