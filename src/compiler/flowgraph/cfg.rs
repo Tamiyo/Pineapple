@@ -101,8 +101,6 @@ pub struct CFG {
     pub uses: HashMap<Oper, HashSet<StatementIndex>>,
     pub def: HashMap<Oper, HashSet<StatementIndex>>,
 
-    pub stack_offset: usize,
-
     // Dominators
     pub dom_ctx: DominatorContext,
     // Dataflow Analysis
@@ -216,7 +214,7 @@ impl CFG {
                     None => false,
                 })
                 .unwrap();
-                modified_statements.append(&mut self.remove_block(block_to_remove));
+            modified_statements.append(&mut self.remove_block(block_to_remove));
         };
 
         // Replace the statement with a straight jump
@@ -293,9 +291,9 @@ impl CFG {
 // Ah... this monster method to convert tac to a cfg.
 // This is my 5th iteration of this method and I still dont like it.
 // Dont even try to read it just know it works, probably.
-impl From<&(Vec<Stmt>, usize)> for CFG {
-    fn from(transformed_code: &(Vec<Stmt>, usize)) -> Self {
-        let (linear_code, stack_offset) = transformed_code;
+impl From<&Vec<Stmt>> for CFG {
+    fn from(transformed_code: &Vec<Stmt>) -> Self {
+        let linear_code = transformed_code;
 
         let mut label_count = 0;
         let mut blocks: Vec<BasicBlock> = vec![];
@@ -310,13 +308,13 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
         for statement in linear_code {
             match statement {
                 Stmt::Label(label) => {
-                    label_count = max(label_count, *label + 1);
+                    label_count = max(label_count, label + 1);
                     blabel = Some(Rc::new(RefCell::new(statement.clone())));
                 }
                 Stmt::NamedLabel(_) => {
                     blabel = Some(Rc::new(RefCell::new(statement.clone())));
                 }
-                Stmt::Jump(_) | Stmt::Call(_, _) | Stmt::CJump(_, _) => {
+                Stmt::Jump(_) | Stmt::CJump(_, _) => {
                     bgoto = Some(Rc::new(RefCell::new(statement.clone())));
 
                     let block = BasicBlock {
@@ -332,7 +330,7 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
                 }
                 Stmt::Tac(lval, rval) => {
                     let nindex = blocks.len();
-                    def.entry(*lval).or_insert_with(HashSet::new).insert(nindex);
+                    def.entry(lval.clone()).or_insert_with(HashSet::new).insert(nindex);
 
                     for oper in rval.oper_used() {
                         uses.entry(oper).or_insert_with(HashSet::new).insert(nindex);
@@ -388,7 +386,6 @@ impl From<&(Vec<Stmt>, usize)> for CFG {
             dom_ctx: DominatorContext::default(),
             uses,
             def,
-            stack_offset: *stack_offset,
         }
     }
 }

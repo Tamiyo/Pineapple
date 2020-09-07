@@ -1,6 +1,7 @@
 use crate::bytecode::chunk::Chunk;
-use crate::bytecode::constant_pool::ConstantPool;
-use crate::bytecode::Constant;
+use crate::bytecode::Label;
+use crate::{bytecode::constant_pool::ConstantPool, core::value::Value};
+use std::collections::HashMap;
 
 type ChunkIndex = usize;
 type ConstantIndex = usize;
@@ -9,6 +10,7 @@ type ConstantIndex = usize;
 pub struct Module {
     pub chunks: Vec<Chunk>,
     pub constants: ConstantPool,
+    pub named_labels: HashMap<usize, usize>,
 }
 
 impl Module {
@@ -16,6 +18,7 @@ impl Module {
         Module {
             chunks: vec![],
             constants: ConstantPool::new(),
+            named_labels: HashMap::new(),
         }
     }
 
@@ -32,11 +35,11 @@ impl Module {
         &mut self.chunks[chunk_index]
     }
 
-    pub fn insert_constant(&mut self, constant: Constant) -> ConstantIndex {
+    pub fn add_constant(&mut self, constant: Value) -> ConstantIndex {
         self.constants.insert(constant)
     }
 
-    pub fn get_constant(&self, index: usize) -> &Constant {
+    pub fn get_constant(&self, index: usize) -> &Value {
         self.constants.get(index)
     }
 }

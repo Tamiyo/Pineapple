@@ -1,20 +1,20 @@
-use crate::bytecode::constant::Constant;
 use crate::bytecode::string_intern::get_string;
+use crate::core::value::Value;
 use std::fmt;
 
-pub mod constant;
-pub mod constant_pool;
-pub mod distance;
-pub mod string_intern;
 pub mod chunk;
+pub mod constant_pool;
+pub mod distancef32;
+pub mod distancef64;
 pub mod module;
+pub mod string_intern;
 
 type InternIndex = usize;
 type Arity = usize;
 type StackOffset = usize;
 type RegisterIndex = usize;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Label {
     Label(usize),
     Named(usize),
@@ -29,16 +29,16 @@ impl fmt::Debug for Label {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum OR {
     REG(RegisterIndex),
     STACK(StackOffset),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IR {
     REG(RegisterIndex),
-    CONST(Constant),
+    VALUE(Value),
     STACK(StackOffset),
     STACKPOP,
     RETVAL,
@@ -46,8 +46,8 @@ pub enum IR {
 
 // TODO -> Abstract Label out to easily specify between named and unamed
 //      -> in compiler fix up inreg
-#[derive(Debug, Copy, Clone)]
-pub enum OpCode {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Instruction {
     LABEL(Label),
 
     MOV(OR, IR),

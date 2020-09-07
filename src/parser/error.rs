@@ -1,5 +1,6 @@
+use crate::core::value::Type;
 use crate::parser::ast::Expr;
-use crate::parser::tokens::{Symbol, Token};
+use crate::parser::token::{Symbol, Token};
 
 use std::error;
 use std::fmt;
@@ -7,6 +8,7 @@ use std::fmt;
 #[derive(Debug)]
 pub enum ParseError {
     TokenStreamEmpty,
+    CastError(Token, Type),
     UnexpectedToken(Token, Symbol),
     UnexpectedInfixOperator(Token),
     UnexpectedPrefixOperator(Token),
@@ -14,6 +16,7 @@ pub enum ParseError {
     ExpectedBinaryOperator(Token),
     ExpectedLiteral(Token),
     ExpectedLValue(Expr),
+    ExpectedVariableType(Token),
 }
 
 impl fmt::Display for ParseError {
@@ -22,6 +25,11 @@ impl fmt::Display for ParseError {
             ParseError::TokenStreamEmpty => {
                 write!(f, "Attempted to perform a seek() operation on the token stream, but the stream is empty.")
             }
+            ParseError::CastError(token, target_type) => {
+                let line = token.line;
+                let col = token.col;
+                write!(f, "At {}:{}. Attempted to cast {:?} to {:?}, but cast failed", line, col, token, target_type)
+            },
             ParseError::UnexpectedToken(found, expected) => {
                 let line = found.line;
                 let col = found.col;
@@ -54,6 +62,11 @@ impl fmt::Display for ParseError {
             }
             ParseError::ExpectedLValue(expr) => {
                 write!(f, "Expected a lvalue while parsing, but instead found: `{:?}`.", expr)
+            }
+            ParseError::ExpectedVariableType(found) => {
+                let line = found.line;
+                let col = found.col;
+                write!(f, "At {}:{}, Expected a a type, but instead found: `{:?}`.", line, col, *found)
             }
         }
     }

@@ -1,6 +1,6 @@
-use crate::bytecode::constant::Constant;
 use crate::bytecode::string_intern::get_string;
-use crate::parser::{binop::BinOp, relop::RelOp};
+use crate::core::binop::BinOp;
+use crate::core::{relop::RelOp, value::Value};
 use core::cell::RefCell;
 use std::cmp::Eq;
 use std::rc::Rc;
@@ -22,6 +22,7 @@ pub enum Stmt {
     NamedLabel(Label),
     Jump(Label),
     CJump(Expr, Label),
+
     Call(Interned, Arity),
 
     StackPushAllReg,
@@ -29,7 +30,7 @@ pub enum Stmt {
 
     StackPush(Oper),
 
-    Return(Oper),
+    Return(Option<Oper>),
 
     //  Special pseudo-instruction for SSA destruction
     //  See SSA-Book p. 36
@@ -85,8 +86,8 @@ impl Stmt {
                 v
             }
             Stmt::Return(oper) => match *oper {
-                Oper::Var(_, _) => vec![*oper],
-                Oper::Temp(_, _) => vec![*oper],
+                Some(Oper::Var(_, _)) => vec![oper.unwrap()],
+                Some(Oper::Temp(_, _)) => vec![oper.unwrap()],
                 _ => vec![],
             },
             _ => vec![],
@@ -119,7 +120,13 @@ impl Stmt {
                 }
                 res
             }
-            Stmt::Return(oper) => oper.replace_oper_with(a, b),
+            Stmt::Return(oper) => {
+                if let Some(oper) = oper {
+                    oper.replace_oper_with(a, b)
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -146,7 +153,11 @@ impl Stmt {
                     copy.borrow_mut().replace_oper_use_with_ssa(value, ssa);
                 }
             }
-            Stmt::Return(oper) => oper.replace_with_ssa(value, ssa),
+            Stmt::Return(oper) => {
+                if let Some(oper) = oper {
+                    oper.replace_with_ssa(value, ssa)
+                }
+            }
             _ => (),
         }
     }
@@ -322,11 +333,11 @@ impl fmt::Debug for Expr {
                                 write!(f, "_t{}.{}", value, ssa)?;
                             }
                         }
-                        Oper::Constant(c) => {
+                        Oper::Value(c) => {
                             if i != args.len() - 1 {
-                                write!(f, "{}, ", c)?;
+                                write!(f, "{:?}, ", c)?;
                             } else {
-                                write!(f, "{}", c)?;
+                                write!(f, "{:?}", c)?;
                             }
                         }
                         _ => (),
@@ -343,7 +354,7 @@ impl fmt::Debug for Expr {
 pub enum Oper {
     Var(Sym, Version),
     Temp(Sym, Version),
-    Constant(Constant),
+    Value(Value),
 
     StackPop,
 
@@ -396,7 +407,7 @@ impl fmt::Debug for Oper {
             Oper::ReturnValue => write!(f, "$rv"),
             Oper::Var(value, ssa) => write!(f, "{}.{}", get_string(*value), ssa),
             Oper::Temp(value, ssa) => write!(f, "_t{}.{}", value, ssa),
-            Oper::Constant(c) => write!(f, "{}", c),
+            Oper::Value(c) => write!(f, "{:?}", c),
         }
     }
 }

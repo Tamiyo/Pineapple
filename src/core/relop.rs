@@ -1,5 +1,5 @@
-use crate::parser::tokens::Symbol;
-use crate::parser::tokens::Token;
+use crate::parser::token::Symbol;
+use crate::parser::token::Token;
 
 use std::fmt;
 

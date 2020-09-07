@@ -1,8 +1,7 @@
+use crate::bytecode::string_intern::intern_string;
+use crate::core::{distance::Distance, value::Primitive};
 use crate::parser::error::ScanError;
-use crate::{
-    bytecode::distance::Distance,
-    parser::tokens::{Symbol, Token},
-};
+use crate::parser::token::{Symbol, Token};
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -59,8 +58,8 @@ impl<'a> Scanner<'a> {
      *      Vec<char> : A vector of characters that were consumed.
      */
     fn consume_while<F>(&mut self, x: F) -> Result<Vec<char>, ScanError>
-        where
-            F: Fn(char) -> bool,
+    where
+        F: Fn(char) -> bool,
     {
         let mut chars: Vec<char> = Vec::new();
         while let Some(&ch) = self.it.peek() {
@@ -115,8 +114,13 @@ impl<'a> Scanner<'a> {
     fn whitespace(&mut self) -> Result<Option<Symbol>, ScanError> {
         while let Some(ch) = self.it.peek() {
             match ch {
-                '\n' | '\r' | '\t' | ' ' => {
+                '\t' | ' ' => {
                     self.next()?;
+                }
+                '\n' | '\r' => {
+                    self.next()?;
+                    self.line += 1;
+                    self.column = 0;
                 }
                 '/' => {
                     self.next()?;
@@ -168,16 +172,23 @@ impl<'a> Scanner<'a> {
                 .collect();
             result.push('.');
             result.push_str(decimal.as_str());
+
+            let res_f = match result.parse::<f64>() {
+                Ok(value) => value,
+                Err(_) => {
+                    return Err(ScanError::InvalidNumeric(start_line, start_col));
+                }
+            };
+            Ok(Symbol::FloatLiteral(res_f))
+        } else {
+            let res_i = match result.parse::<u128>() {
+                Ok(value) => value,
+                Err(_) => {
+                    return Err(ScanError::InvalidNumeric(start_line, start_col));
+                }
+            };
+            Ok(Symbol::IntegerLiteral(res_i))
         }
-
-        let res_f = match result.parse::<f64>() {
-            Ok(value) => value,
-            Err(_) => {
-                return Err(ScanError::InvalidNumeric(start_line, start_col));
-            }
-        };
-
-        Ok(Symbol::Number(Distance::from(res_f)))
     }
 
     /**
@@ -193,24 +204,26 @@ impl<'a> Scanner<'a> {
         let start_line = self.line;
         let start_col = self.column;
 
-        let result: String = self.consume_while(|c| c != delim)?.into_iter().collect();
+        let result = self.consume_while(|c| c != delim)?;
         if self.next()? != delim {
             return Err(ScanError::UnterminatedString(start_line, start_col));
         }
 
-        Ok(Symbol::String(result))
+        let str: String = result.iter().collect();
+        Ok(Symbol::StringLiteral(intern_string(str)))
     }
 
     /**
-     *  [Keyword]
+     *  []
      *
-     *  Given a string value, determines if that string is a keyword.
+     *  Given a string value, determines if that string is a .
      *  
      *  Returns:
-     *      Symbol: A symbol that contains the keyword symbol or an identifier.
+     *      Symbol: A symbol that contains the  symbol or an identifier.
      */
     fn keyword(&mut self, name: String) -> Result<Symbol, ScanError> {
         let key = match name.as_str() {
+            // s
             "and" => Symbol::And,
             "elif" => Symbol::Elif,
             "else" => Symbol::Else,
@@ -226,7 +239,37 @@ impl<'a> Scanner<'a> {
             "super" => Symbol::Super,
             "true" => Symbol::True,
             "while" => Symbol::While,
-            _ => Symbol::Identifier(name),
+
+            // Types
+            "int8" => Symbol::TypeInt8,
+            "int16" => Symbol::TypeInt16,
+            "int32" => Symbol::TypeInt32,
+            "int64" => Symbol::TypeInt64,
+            "int128" => Symbol::TypeInt128,
+            "int" => Symbol::TypeInt,
+
+            "uint8" => Symbol::TypeUInt8,
+            "uint16" => Symbol::TypeUInt16,
+            "uint32" => Symbol::TypeUInt32,
+            "uint64" => Symbol::TypeUInt64,
+            "uint128" => Symbol::TypeUInt128,
+            "uint" => Symbol::TypeUInt,
+
+            "float32" => Symbol::TypeFloat32,
+            "float64" => Symbol::TypeFloat64,
+
+            // Boolean Primitive
+            "bool" => Symbol::TypeBool,
+
+            // Character Primitive
+            "char" => Symbol::TypeChar,
+
+            // Vector Complex Builtin
+            "Vec" => Symbol::TypeVector,
+
+            // Tuple Complex Builtin
+            "Tuple" => Symbol::TypeTuple,
+            _ => Symbol::Identifier(intern_string(name)),
         };
 
         Ok(key)
@@ -272,7 +315,7 @@ impl<'a> Scanner<'a> {
 
             let ch = match self.next() {
                 Ok(ch) => {
-                    if ch == '\n' {
+                    if ch == '\n' || ch == '\r' {
                         self.line += 1;
                         self.column = 0;
                     } else {

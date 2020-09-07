@@ -1,16 +1,16 @@
-use crate::compiler::compile_ir;
+use crate::compiler::dominator::compute_dominator_context;
+use crate::compiler::flowgraph::cfg::CFG;
 use crate::compiler::ir::ssa::construct_ssa;
-use crate::compiler::ir::ssa::destruct_ssa;
 use crate::compiler::optimizer::constant_optimization;
 use crate::compiler::register_allocation::register_allocation;
-use crate::{
-    compiler::{
-        dominator::compute_dominator_context, flowgraph::cfg::CFG,
-        transformer::linearcode::LinearCodeTransformer,
-    },
-    parser::{scanner::Scanner, Parser},
-    vm::VM,
-};
+use crate::compiler::transformer::linearcode::LinearCodeTransformer;
+use crate::compiler::Compiler;
+use crate::parser::parse_program;
+use crate::parser::scanner::Scanner;
+use crate::semantic_analysis::binding_check_ast;
+use crate::semantic_analysis::type_check_ast;
+use crate::vm::VM;
+// use crate::parser::Parser;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -71,24 +71,35 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     let tokens = match scanner.tokenize() {
         Ok(t) => t,
         Err(e) => {
-            println!("{}", e);
             return Err(format!("{}", e));
         }
     };
 
-    let mut parser = Parser::new(tokens);
-    let ast = match parser.parse() {
+    let ast = match parse_program(tokens) {
         Ok(a) => a,
         Err(e) => {
             return Err(format!("{}", e));
         }
     };
 
+    match type_check_ast(&ast) {
+        Ok(_) => (),
+        Err(e) => {
+            return Err(format!("{}", e));
+        }
+    }
+
+    match binding_check_ast(&ast) {
+        Ok(_) => (),
+        Err(e) => {
+            return Err(format!("{}", e));
+        }
+    }
+
     let mut lcs = LinearCodeTransformer::new();
     let linear_code_blocks = lcs.translate(ast);
 
     let mut cfgs: Vec<CFG> = vec![];
-
     for linear_code in linear_code_blocks {
         let mut cfg = CFG::from(&linear_code);
 
@@ -96,7 +107,7 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
         construct_ssa(&mut cfg);
 
         // Optimizations go here
-        destruct_ssa(&mut cfg);
+        construct_ssa(&mut cfg);
 
         if args.optimize {
             constant_optimization(&mut cfg);
@@ -116,16 +127,22 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
         cfgs.push(cfg);
     }
 
-    let compiler_context = compile_ir(cfgs);
+    let module = {
+        let mut compiler = Compiler::new();
+        compiler.compile_ir_to_bytecode(cfgs)
+    };
 
     if args.debug {
-        for (index, instr) in compiler_context.opcodes.iter().enumerate() {
-            println!("{}:\t{:?}", index, instr);
+        for chunk in module.chunks.iter() {
+            for (index, instr) in chunk.instructions.iter().enumerate() {
+                println!("{}:\t{:?}", index, instr);
+            }
+            println!("")
         }
     }
 
     let mut vm = VM::new();
-    match vm.dispatch(&compiler_context) {
+    match vm.dispatch(&module) {
         Ok(()) => (),
         Err(e) => panic!(e),
     };

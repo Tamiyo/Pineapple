@@ -1,16 +1,9 @@
-use crate::bytecode::distance::Distance;
+use crate::core::distance::Distance;
 use std::fmt;
 use std::hash::Hash;
 use std::ops::Deref;
 
-/**
- *  [Symbol]
- *
- *  Symbols are the possible characters that can appear in a user's
- *  source code. They build the foundation for what the parser can
- *  determine about a user's input.
- */
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Symbol {
     // Single-character Symbols.
     LeftParen,
@@ -39,16 +32,18 @@ pub enum Symbol {
     Less,
     LessEqual,
     // Literals.
-    Identifier(String),
-    String(String),
-    Number(Distance),
-    // Keywords.
-    And,
+    Identifier(usize),
+    StringLiteral(usize),
+    IntegerLiteral(u128),
+    FloatLiteral(f64),
+    // Keywordss.
     Class,
+    Fun,
+    Var,
+    And,
     Elif,
     Else,
     False,
-    Fun,
     For,
     If,
     In,
@@ -60,58 +55,54 @@ pub enum Symbol {
     Super,
     True,
     While,
-    Var,
     Eof,
+
+    // Integer Primitives
+    TypeInt8,
+    TypeInt16,
+    TypeInt32,
+    TypeInt64,
+    TypeInt128,
+    TypeInt,
+
+    TypeUInt8,
+    TypeUInt16,
+    TypeUInt32,
+    TypeUInt64,
+    TypeUInt128,
+    TypeUInt,
+
+    // Floating Point Primitives
+    TypeFloat32,
+    TypeFloat64,
+
+    // Boolean Primitive
+    TypeBool,
+
+    // Character Primitive
+    TypeChar,
+
+    // Vector Complex Builtin
+    TypeVector,
+
+    // Tuple Complex Builtin
+    TypeTuple,
 }
 
-/**
- *  [Token]
- *  
- *  Token is a wrapper around the Symbol enum that also contains metadata
- *  about the sym, like its location in the user program.
- */
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Token {
-    /**
-     *  [Symbol]
-     *
-     *  The sym that this Token is associated with.
-     */
     pub sym: Symbol,
 
-    /**
-     *  [Line]
-     *
-     *  The line number that this Token is associated with.
-     */
     pub line: usize,
-
-    /**
-     *  [Column]
-     *
-     *  The column number that this Token is associated with.
-     */
     pub col: usize,
 }
 
 impl Token {
-    /**
-     *  [Create a new Token]
-     *
-     *  Creates a new token the parameters given.
-     */
     pub fn new(sym: Symbol, line: usize, col: usize) -> Self {
         Token { sym, line, col }
     }
 }
 
-/**
- *  Dereferences the Token, giving us the inner Symbol.
- *
- *  This is important because we do a lot of moves / copying during
- *  parsing and compilation. Having a convenient dereference makes
- *  working with Tokens easier in this regard.
- */
 impl Deref for Token {
     type Target = Symbol;
 

@@ -1,0 +1,13 @@
+#add(x: int, y: int): int {
+    return x + y;
+}
+
+
+#main() {
+    a: int = 4;
+    b: float64 = 23.2;
+    print(a, b);
+
+    c: int = add(2, 7);
+    print(c);
+}

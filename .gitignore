@@ -1,5 +1,1 @@
-/target/release/*
-/target/debug/*
-/target/rls/*
-/target/.rustc_info.json
-!/target/release/pineapple.exe
+/target

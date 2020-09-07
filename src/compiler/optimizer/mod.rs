@@ -10,8 +10,8 @@
 //     1. Tail-call optimization
 //     2. Local and global subexpression elimination
 //     3. Loop-invariant analysis
-//     4. Constant propagation
-//     5. Constant Folding
+//     4. Value propagation
+//     5. Value Folding
 //     6. Copy Propagation
 //     7. Dead code elimination
 //     8. Hoisting
@@ -27,10 +27,15 @@
 //     5. Register Allocation / Coalescing
 
 use super::ir::{Expr, Oper};
-use crate::compiler::Rc;
-use crate::compiler::Stmt;
-use crate::{bytecode::constant::Constant, compiler::CFG};
+use crate::compiler::flowgraph::cfg::CFG;
+use crate::core::value::compute_binary;
+use crate::core::value::compute_logical;
+use crate::{
+    compiler::ir::Stmt,
+    core::value::{Primitive, ValueType},
+};
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub fn constant_optimization(cfg: &mut CFG) {
     let mut w = cfg.statements();
@@ -39,9 +44,9 @@ pub fn constant_optimization(cfg: &mut CFG) {
     while !w.is_empty() {
         let s: Rc<RefCell<Stmt>> = w.pop().unwrap();
 
-        // Constant Propagation
+        // Value Propagation
         if let Stmt::Tac(lval, Expr::Oper(oper)) = &*s.borrow() {
-            if let Oper::Constant(_) = oper {
+            if let Oper::Value(_) = oper {
                 for t in cfg.statements_using(lval) {
                     t.borrow_mut().replace_all_oper_use_with(lval, oper);
                     if !w.contains(&t) {
@@ -65,22 +70,22 @@ pub fn constant_optimization(cfg: &mut CFG) {
             }
         };
 
-        // Constant Folding
+        // Value Folding
         if let Stmt::Tac(_, rval) = &mut *s.borrow_mut() {
             if let Expr::Binary(left, op, right) = rval.clone() {
                 match (left, right) {
-                    (Oper::Constant(a), Oper::Constant(b)) => {
-                        let constant = Oper::Constant(a.compute_binary(op, b));
-                        *rval = Expr::Oper(constant);
+                    (Oper::Value(a), Oper::Value(b)) => {
+                        let Value = Oper::Value(compute_binary(a, op, b));
+                        *rval = Expr::Oper(Value);
                         w.push(Rc::clone(&s));
                     }
                     _ => (),
                 };
             } else if let Expr::Logical(left, op, right) = rval.clone() {
                 match (left, right) {
-                    (Oper::Constant(a), Oper::Constant(b)) => {
-                        let constant = Oper::Constant(a.compute_logical(op, b));
-                        *rval = Expr::Oper(constant);
+                    (Oper::Value(a), Oper::Value(b)) => {
+                        let Value = Oper::Value(compute_logical(a, op, b));
+                        *rval = Expr::Oper(Value);
                         w.push(Rc::clone(&s));
                     }
                     _ => (),
@@ -88,17 +93,19 @@ pub fn constant_optimization(cfg: &mut CFG) {
             };
         };
 
-        // Constant Conditions
+        // Value Conditions
         // This one kinda wonky rn, will look at it again
         {
             let mut label: Option<usize> = None;
             if let Stmt::CJump(Expr::Oper(operand), l) = &*((s.clone()).borrow()) {
-                if let Oper::Constant(Constant::Boolean(b)) = operand {
-                    let (mut modified_statements, jump_label) =
-                        cfg.remove_conditional_jump(&s, *b, *l);
-                    w.append(&mut modified_statements);
+                if let Oper::Value(value) = operand {
+                    if let ValueType::Primitive(Primitive::Bool(b)) = &value.inner {
+                        let (mut modified_statements, jump_label) =
+                            cfg.remove_conditional_jump(&s, *b, *l);
+                        w.append(&mut modified_statements);
 
-                    label = jump_label;
+                        label = jump_label;
+                    }
                 }
             };
 

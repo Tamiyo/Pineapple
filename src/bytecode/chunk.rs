@@ -1,17 +1,25 @@
-use crate::bytecode::OpCode;
+use crate::bytecode::Instruction;
+use crate::bytecode::Label;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Chunk {
-    pub opcodes: Vec<OpCode>,
+    pub instructions: Vec<Instruction>,
+    pub labels: HashMap<Label, usize>,
 }
 
 impl Chunk {
     pub fn new() -> Self {
-        Chunk { opcodes: vec![] }
+        Chunk {
+            instructions: vec![],
+            labels: HashMap::new(),
+        }
     }
 
-    pub fn add_instruction(&mut self, opcode: OpCode) -> usize {
-        self.opcodes.push(opcode);
-        self.opcodes.len() - 1
+    pub fn add_instruction(&mut self, instruction: Instruction) {
+       if let Instruction::LABEL(label) = instruction {
+            self.labels.insert(label, self.instructions.len());
+       }
+       self.instructions.push(instruction);
     }
 }

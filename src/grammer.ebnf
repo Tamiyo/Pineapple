@@ -19,8 +19,28 @@ statement ::= exprStmt
 
 exprStmt ::= expression ";"
 printStmt ::= "print" "(" expression ")" ";"
-returnStmt ::= "return" expression ";"
-assignStmt ::= '$' IDENTIFIER "=" expression ";"
+returnStmt ::= "return" expression ";" 
+assignStmt ::= IDENTIFIER ":" type "=" expression ";"
+type ::= "int8"
+            | "int16"
+            | "int32"
+            | "int64"
+            | "int128"
+            | "int"
+            | "uint8"
+            | "uint16"
+            | "uint32"
+            | "uint64"
+            | "uint128"
+            | "uint"
+            | "float32"
+            | "float64"
+            | "float"
+            | "bool"
+            | "char"
+            | "vector"
+            | "tuple"
+
 ifStmt ::= "if" expression blockStmt
             (("elif"  expression)*)? ("else" blockStmt)?
 
@@ -30,7 +50,7 @@ forStmt ::= "for" IDENTIFIER "in" expression blockStmt
 blockStmt ::= "{" statement* "}"
 
 expression ::= logic_or
-            # | multi_select_hash 
+            | multi_select_hash 
 
 logic_or ::= logic_and ("or" logic_and)*
 logic_and ::= equality ("and" equality)*
@@ -73,4 +93,4 @@ key_value_expression = expression ":" expression
 identifier_list ::= IDENTIFIER ( "," IDENTIFIER )*
 expression_list ::= expression ( "," expression )*
 
-function ::= IDENTIFIER "(" identifier_list? ")" blockStmt
+function ::= IDENTIFIER "(" identifier_list? ")": type blockStmt

@@ -1,8 +1,11 @@
-use crate::bytecode::distance::Distance;
-use crate::parser::binop::BinOp;
-use crate::parser::relop::RelOp;
+use crate::core::value::Type;
+use crate::core::{binop::BinOp, relop::RelOp, value::Value};
 
-type Interned = usize;
+type Sym = usize;
+
+type Condition = Box<Expr>;
+type Body = Box<Stmt>;
+type Args = Vec<(Sym, Type)>;
 
 /**
  *  [AST Expression]
@@ -12,12 +15,9 @@ type Interned = usize;
  */
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Number(Distance),
-    String(Interned),
-    Boolean(bool),
-    Variable(Interned),
-    Assign(Interned, Box<Expr>),
-    // Call(Box<Expr>, Vec<Expr>),
+    Value(Value),
+    Variable(Sym),
+    Assign(Sym, Type, Box<Expr>),
     Binary(Box<Expr>, BinOp, Box<Expr>),
     Logical(Box<Expr>, RelOp, Box<Expr>),
     Grouping(Box<Expr>),
@@ -33,10 +33,10 @@ pub enum Expr {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Block(Vec<Stmt>),
-    If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
-    While(Box<Expr>, Box<Stmt>),
+    If(Condition, Body, Option<Box<Stmt>>),
+    While(Condition, Body),
     Expression(Box<Expr>),
     Print(Vec<Expr>),
     Return(Option<Box<Expr>>),
-    Function(Interned, Vec<Interned>, Vec<Stmt>),
+    Function(Sym, Args, Type, Vec<Stmt>),
 }
