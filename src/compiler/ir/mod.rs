@@ -407,7 +407,7 @@ impl fmt::Debug for Oper {
             Oper::ReturnValue => write!(f, "$rv"),
             Oper::Var(value, ssa) => write!(f, "{}.{}", get_string(*value), ssa),
             Oper::Temp(value, ssa) => write!(f, "_t{}.{}", value, ssa),
-            Oper::Value(c) => write!(f, "{:?}", c),
+            Oper::Value(c) => write!(f, "{}", c),
         }
     }
 }

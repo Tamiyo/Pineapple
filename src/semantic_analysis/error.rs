@@ -1,3 +1,4 @@
+use crate::parser::ast::Expr;
 use crate::bytecode::string_intern::get_string;
 use crate::core::value::Type;
 use crate::core::value::Value;
@@ -20,7 +21,7 @@ impl fmt::Display for BindingError {
 pub enum TypeError {
     InvalidValueType(Value, Type),
     InvalidVariableType(Sym, Type, Type),
-    ExpectedNestedType,
+    ExpectedNestedType(Expr),
     UndefinedVariable(Sym),
     UndefinedFunction(Sym),
     FunctionArityMismatch(Sym, usize, usize),
@@ -35,8 +36,8 @@ impl fmt::Display for TypeError {
             TypeError::InvalidVariableType(value, actual_type, expected_type) => {
                 write!(f, "Invalid Variable Type for {:?}. Expected {:?} but got {:?}", get_string(*value), actual_type, expected_type)
             }
-            TypeError::ExpectedNestedType => {
-                write!(f, "Expected a ast expression to have a type. This is an internal error and you should flame the compiler enginner.")
+            TypeError::ExpectedNestedType(expr) => {
+                write!(f, "Expected {:?} to have a type. This is an internal error and you should flame the compiler engineer.", expr)
             }
             TypeError::UndefinedVariable(sym) => {
                 write!(f, "Undefined Variable '{}'", get_string(*sym))

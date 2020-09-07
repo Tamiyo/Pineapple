@@ -1,3 +1,4 @@
+use crate::bytecode::string_intern::get_string;
 use crate::core::value::Type;
 use crate::parser::ast::{Expr, Stmt};
 use crate::semantic_analysis::error::TypeError;
@@ -75,7 +76,10 @@ fn check_stmt(stmt: &Stmt, expected_type: Option<Type>) -> Result<(), TypeError>
             }
             Ok(())
         }
-        Stmt::Expression(expr) => check_expr(expr, None),
+        Stmt::Expression(expr) => match check_expr(expr, None) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        },
         Stmt::Print(_) => Ok(()),
         Stmt::Return(expr) => {
             if let Some(expr) = expr {
@@ -87,23 +91,36 @@ fn check_stmt(stmt: &Stmt, expected_type: Option<Type>) -> Result<(), TypeError>
     }
 }
 
-fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<(), TypeError> {
+fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<Option<Type>, TypeError> {
     match expr {
         Expr::Assign(lval, var_type, rval) => {
             VAR_SYMBOL_TABLE.with(|symbol_table| {
                 symbol_table.borrow_mut().insert(*lval, *var_type);
             });
-            check_expr(rval, Some(*var_type))
+            check_expr(rval, Some(*var_type))?;
+            Ok(Some(*var_type))
         }
         Expr::Binary(left, op, right) => {
-            check_expr(left, expected_type)?;
-            check_expr(right, expected_type)?;
-            Ok(())
+            if expected_type == None {
+                let ltype = check_expr(left, expected_type)?;
+                check_expr(right, ltype)?;
+                Ok(ltype)
+            } else {
+                check_expr(left, expected_type)?;
+                check_expr(right, expected_type)?;
+                Ok(expected_type)
+            }
         }
         Expr::Logical(left, op, right) => {
-            check_expr(left, expected_type)?;
-            check_expr(right, expected_type)?;
-            Ok(())
+            if expected_type == None {
+                let ltype = check_expr(left, expected_type)?;
+                check_expr(right, ltype)?;
+                Ok(ltype)
+            } else {
+                check_expr(left, expected_type)?;
+                check_expr(right, expected_type)?;
+                Ok(expected_type)
+            }
         }
         Expr::Grouping(group) => check_expr(group, expected_type),
         Expr::Variable(sym) => {
@@ -111,7 +128,7 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<(), TypeError>
                 VAR_SYMBOL_TABLE.with(|symbol_table| match symbol_table.borrow().get(sym) {
                     Some(actual_type) => {
                         if actual_type == &expected_type {
-                            Ok(())
+                            Ok(Some(expected_type))
                         } else {
                             let symbol_table = symbol_table.borrow();
                             let actual_type = symbol_table.get(sym).unwrap();
@@ -125,18 +142,21 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<(), TypeError>
                     None => Err(TypeError::UndefinedVariable(*sym)),
                 })
             } else {
-                Err(TypeError::ExpectedNestedType)
+                VAR_SYMBOL_TABLE.with(|symbol_table| match symbol_table.borrow().get(sym) {
+                    Some(x) => Ok(Some(*x)),
+                    None => Err(TypeError::UndefinedVariable(*sym)),
+                })
             }
         }
         Expr::Value(value) => {
             if let Some(expected_type) = expected_type {
-                if let Err(_) = value.try_cast_to(expected_type) {
+                if !value.can_cast_to(expected_type) {
                     return Err(TypeError::InvalidValueType(value.clone(), expected_type));
                 } else {
-                    Ok(())
+                    Ok(Some(expected_type))
                 }
             } else {
-                Err(TypeError::ExpectedNestedType)
+                Err(TypeError::ExpectedNestedType(expr.clone()))
             }
         }
         Expr::Call(left, args) => {
@@ -149,7 +169,7 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<(), TypeError>
                     }
                 });
 
-                let (_, fargs) = match payload {
+                let (ftype, fargs) = match payload {
                     Ok(x) => x,
                     Err(_) => return Err(TypeError::UndefinedFunction(*sym)),
                 };
@@ -164,7 +184,7 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<(), TypeError>
 
                 for i in 0..args.len() {
                     if let Expr::Value(value) = args[i] {
-                        if let Err(_) = value.try_cast_to(fargs[i].1) {
+                        if !value.can_cast_to(fargs[i].1) {
                             return Err(TypeError::InvalidValueType(value, fargs[i].1));
                         }
                     } else if let Expr::Variable(sym) = args[i] {
@@ -188,8 +208,9 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<(), TypeError>
                         });
                     }
                 }
+                return Ok(Some(ftype));
             }
-            Ok(())
+            Err(TypeError::ExpectedNestedType(left.as_ref().clone()))
         }
         _ => unimplemented!(),
     }

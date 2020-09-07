@@ -11,6 +11,7 @@ use crate::{
     parser::token::Token,
 };
 use std::cell::RefCell;
+use std::collections::HashMap;
 use token::Symbol;
 
 pub mod ast;
@@ -19,6 +20,11 @@ pub mod scanner;
 pub mod token;
 
 static mut TOKENS: RefCell<Vec<Token>> = RefCell::new(vec![]);
+
+thread_local! {
+    static VARS: RefCell<HashMap<usize, Type>> = RefCell::new(HashMap::new());
+    static FUNCS: RefCell<HashMap<usize, Vec<Type>>> = RefCell::new(HashMap::new());
+}
 
 // Expression Parsing
 
@@ -107,6 +113,7 @@ fn consume_type() -> Result<Type, ParseError> {
         Symbol::TypeFloat32 => Ok(Type::Float32),
         Symbol::TypeFloat64 => Ok(Type::Float64),
         Symbol::TypeBool => Ok(Type::Bool),
+        Symbol::TypeString => Ok(Type::String),
         _ => Err(ParseError::ExpectedVariableType(found)),
     }
 }
@@ -147,6 +154,10 @@ fn parse_function() -> Result<Stmt, ParseError> {
     } else {
         Vec::new()
     };
+
+    let types: Vec<Type> = params.iter().map(|(_, b)| *b).collect();
+    FUNCS.with(|f| f.borrow_mut().insert(*name, types));
+
     consume(Symbol::RightParen)?;
 
     let mut return_type = Type::None;
@@ -177,6 +188,10 @@ fn parse_identifier_list() -> Result<Vec<(usize, Type)>, ParseError> {
     }?;
     identifiers.push((sym, ptype));
 
+    VARS.with(|vars| {
+        vars.borrow_mut().insert(sym, ptype);
+    });
+
     while *peek()? == Symbol::Comma {
         consume(Symbol::Comma)?;
         n = next()?;
@@ -188,6 +203,10 @@ fn parse_identifier_list() -> Result<Vec<(usize, Type)>, ParseError> {
             _ => return Err(ParseError::ExpectedIdentifier(n.clone())),
         }?;
         identifiers.push((sym, ptype));
+
+        VARS.with(|vars| {
+            vars.borrow_mut().insert(sym, ptype);
+        });
     }
     Ok(identifiers)
 }
@@ -259,7 +278,7 @@ fn parse_else_statement() -> Result<Option<Box<Stmt>>, ParseError> {
 fn parse_print_statement() -> Result<Stmt, ParseError> {
     consume(Symbol::Print)?;
     consume(Symbol::LeftParen)?;
-    let expr_list = parse_expression_list(None)?;
+    let expr_list = parse_expression_list(None, vec![])?;
     consume(Symbol::RightParen)?;
     consume(Symbol::Semicolon)?;
 
@@ -277,15 +296,40 @@ fn parse_return_statement() -> Result<Stmt, ParseError> {
     Ok(Stmt::Return(expr))
 }
 
-fn parse_expression_list(expected_type: Option<Type>) -> Result<Vec<Expr>, ParseError> {
+fn parse_expression_list(
+    expected_type: Option<Type>,
+    args: Vec<Type>,
+) -> Result<Vec<Expr>, ParseError> {
     let mut expressions = Vec::new();
+    let mut i = 0;
+
     if *peek()? != Symbol::RightParen {
-        expressions.push(parse_expression(Precedence::None, expected_type)?);
+        let etype = match expected_type {
+            Some(x) => Some(x),
+            None => {
+                if args.len() == 0 {
+                    None
+                } else {
+                    Some(args[i])
+                }
+            },
+        };
+        expressions.push(parse_expression(Precedence::None, etype)?);
     }
 
     while *peek()? == Symbol::Comma {
         consume(Symbol::Comma)?;
-        expressions.push(parse_expression(Precedence::None, expected_type)?);
+        let etype = match expected_type {
+            Some(x) => Some(x),
+            None => {
+                if args.len() == 0 {
+                    None
+                } else {
+                    Some(args[i])
+                }
+            },
+        };
+        expressions.push(parse_expression(Precedence::None, etype)?);
     }
 
     Ok(expressions)
@@ -369,7 +413,22 @@ fn parse_assign(left: &mut Expr) -> Result<Expr, ParseError> {
 
 fn parse_call(left: &mut Expr, expected_type: Option<Type>) -> Result<Expr, ParseError> {
     consume(Symbol::LeftParen)?;
-    let args = parse_expression_list(expected_type)?;
+    let mut args: Vec<Expr> = vec![];
+    if let Expr::Variable(sym) = left {
+        let types = FUNCS.with(|f| match f.borrow().get(sym) {
+            Some(x) => Ok(x.clone()),
+            None => return Err(ParseError::UndefinedVariable(*sym)),
+        });
+
+        let types = match types {
+            Ok(t) => t,
+            Err(_) => return Err(ParseError::UndefinedVariable(*sym)),
+        };
+
+        args = parse_expression_list(expected_type, types)?;
+    } else {
+        args = parse_expression_list(expected_type, vec![])?;
+    }
     consume(Symbol::RightParen)?;
     Ok(Expr::Call(Box::new(left.clone()), args))
 }
@@ -399,7 +458,23 @@ fn parse_binary(left: &mut Expr, expected_type: Option<Type>) -> Result<Expr, Pa
         }
     }?;
 
-    let right = parse_expression(precedence, expected_type)?;
+    let mut etype = expected_type;
+    if let Some(etype) = expected_type {
+    } else {
+        if let Expr::Variable(sym) = left {
+            etype = VARS.with(|vars| match vars.borrow_mut().get(sym) {
+                Some(x) => return Some(*x),
+                None => None,
+            });
+            if etype == None {
+                return Err(ParseError::UndefinedVariable(*sym));
+            }
+        } else if let Expr::Value(v) = left {
+            etype = Some(v.get_type());
+        }
+    }
+
+    let right = parse_expression(precedence, etype)?;
 
     Ok(Expr::Binary(
         Box::new(left.clone()),
@@ -424,7 +499,23 @@ fn parse_logical(left: &mut Expr, expected_type: Option<Type>) -> Result<Expr, P
         }
     }?;
 
-    let right = parse_expression(precedence, expected_type)?;
+    let mut etype = expected_type;
+    if let Some(etype) = expected_type {
+    } else {
+        if let Expr::Variable(sym) = left {
+            etype = VARS.with(|vars| match vars.borrow_mut().get(sym) {
+                Some(x) => return Some(*x),
+                None => None,
+            });
+            if etype == None {
+                return Err(ParseError::UndefinedVariable(*sym));
+            }
+        } else if let Expr::Value(v) = left {
+            etype = Some(v.get_type());
+        }
+    }
+
+    let right = parse_expression(precedence, etype)?;
 
     Ok(Expr::Logical(
         Box::new(left.clone()),
@@ -480,6 +571,9 @@ fn parse_primary(expected_type: Option<Type>) -> Result<Expr, ParseError> {
             Symbol::Identifier(sym) => {
                 return Ok(Expr::Variable(sym));
             }
+            Symbol::StringLiteral(sym) => {
+                return Ok(Expr::Value(Value::from(Primitive::String(sym))));
+            }
             _ => return Err(ParseError::ExpectedLiteral(token)),
         }
     } else {
@@ -494,6 +588,9 @@ fn parse_primary(expected_type: Option<Type>) -> Result<Expr, ParseError> {
             }
             Symbol::Identifier(sym) => {
                 return Ok(Expr::Variable(sym));
+            }
+            Symbol::StringLiteral(sym) => {
+                return Ok(Expr::Value(Value::from(Primitive::String(sym))));
             }
             _ => return Err(ParseError::ExpectedLiteral(token)),
         }

@@ -1,4 +1,5 @@
 use super::relop::RelOp;
+use crate::bytecode::string_intern::get_string;
 use crate::bytecode::{distancef32::DistanceF32, distancef64::DistanceF64};
 use crate::core::binop::BinOp;
 use core::fmt;
@@ -31,12 +32,10 @@ pub enum Type {
     // Boolean Primitive
     Bool,
 
-    // Character Primitive
     Char,
-    // // String Primitive
-    // String,
 
-    // // Vector Complex
+    String,
+
     // Vector,
 
     // // Tuple Complex
@@ -70,6 +69,8 @@ pub enum Primitive {
 
     // Character Primitive
     Char(char),
+
+    String(usize),
 
     // NoneType
     None,
@@ -178,6 +179,103 @@ impl Primitive {
         }
     }
 
+    pub fn can_cast_to(&self, new_type: Type) -> bool {
+        match (self, new_type) {
+            (Primitive::Int8(a), Type::Int8) => true,
+            (Primitive::Int8(a), Type::Int16) => true,
+            (Primitive::Int8(a), Type::Int32) => true,
+            (Primitive::Int8(a), Type::Int64) => true,
+            (Primitive::Int8(a), Type::Int) => true,
+            (Primitive::Int8(a), Type::Int128) => true,
+
+            (Primitive::Int16(a), Type::Int8) => true,
+            (Primitive::Int16(a), Type::Int16) => true,
+            (Primitive::Int16(a), Type::Int32) => true,
+            (Primitive::Int16(a), Type::Int64) => true,
+            (Primitive::Int16(a), Type::Int) => true,
+            (Primitive::Int16(a), Type::Int128) => true,
+
+            (Primitive::Int32(a), Type::Int8) => true,
+            (Primitive::Int32(a), Type::Int16) => true,
+            (Primitive::Int32(a), Type::Int32) => true,
+            (Primitive::Int32(a), Type::Int64) => true,
+            (Primitive::Int32(a), Type::Int) => true,
+            (Primitive::Int32(a), Type::Int128) => true,
+
+            (Primitive::Int64(a), Type::Int8) => true,
+            (Primitive::Int64(a), Type::Int16) => true,
+            (Primitive::Int64(a), Type::Int32) => true,
+            (Primitive::Int64(a), Type::Int64) => true,
+            (Primitive::Int64(a), Type::Int) => true,
+            (Primitive::Int64(a), Type::Int128) => true,
+
+            (Primitive::Int(a), Type::Int8) => true,
+            (Primitive::Int(a), Type::Int16) => true,
+            (Primitive::Int(a), Type::Int32) => true,
+            (Primitive::Int(a), Type::Int64) => true,
+            (Primitive::Int(a), Type::Int) => true,
+            (Primitive::Int(a), Type::Int128) => true,
+
+            (Primitive::Int128(a), Type::Int8) => true,
+            (Primitive::Int128(a), Type::Int16) => true,
+            (Primitive::Int128(a), Type::Int32) => true,
+            (Primitive::Int128(a), Type::Int64) => true,
+            (Primitive::Int128(a), Type::Int) => true,
+            (Primitive::Int128(a), Type::Int128) => true,
+
+            (Primitive::UInt8(a), Type::UInt8) => true,
+            (Primitive::UInt8(a), Type::UInt16) => true,
+            (Primitive::UInt8(a), Type::UInt32) => true,
+            (Primitive::UInt8(a), Type::UInt64) => true,
+            (Primitive::UInt8(a), Type::UInt) => true,
+            (Primitive::UInt8(a), Type::UInt128) => true,
+
+            (Primitive::UInt16(a), Type::UInt8) => true,
+            (Primitive::UInt16(a), Type::UInt16) => true,
+            (Primitive::UInt16(a), Type::UInt32) => true,
+            (Primitive::UInt16(a), Type::UInt64) => true,
+            (Primitive::UInt16(a), Type::UInt) => true,
+            (Primitive::UInt16(a), Type::UInt128) => true,
+
+            (Primitive::UInt32(a), Type::UInt8) => true,
+            (Primitive::UInt32(a), Type::UInt16) => true,
+            (Primitive::UInt32(a), Type::UInt32) => true,
+            (Primitive::UInt32(a), Type::UInt64) => true,
+            (Primitive::UInt32(a), Type::UInt) => true,
+            (Primitive::UInt32(a), Type::UInt128) => true,
+
+            (Primitive::UInt64(a), Type::UInt8) => true,
+            (Primitive::UInt64(a), Type::UInt16) => true,
+            (Primitive::UInt64(a), Type::UInt32) => true,
+            (Primitive::UInt64(a), Type::UInt64) => true,
+            (Primitive::UInt64(a), Type::UInt) => true,
+            (Primitive::UInt64(a), Type::UInt128) => true,
+
+            (Primitive::UInt(a), Type::UInt8) => true,
+            (Primitive::UInt(a), Type::UInt16) => true,
+            (Primitive::UInt(a), Type::UInt32) => true,
+            (Primitive::UInt(a), Type::UInt64) => true,
+            (Primitive::UInt(a), Type::UInt) => true,
+            (Primitive::UInt(a), Type::UInt128) => true,
+
+            (Primitive::UInt128(a), Type::UInt8) => true,
+            (Primitive::UInt128(a), Type::UInt16) => true,
+            (Primitive::UInt128(a), Type::UInt32) => true,
+            (Primitive::UInt128(a), Type::UInt64) => true,
+            (Primitive::UInt128(a), Type::UInt) => true,
+            (Primitive::UInt128(a), Type::UInt128) => true,
+
+            (Primitive::Float64(a), Type::Float32) => true,
+            (Primitive::Float64(a), Type::Float64) => true,
+
+            (Primitive::Float32(a), Type::Float32) => true,
+            (Primitive::Float32(a), Type::Float64) => true,
+
+            (Primitive::String(s), Type::String) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_of_type(&self, target_type: Type) -> bool {
         match (self, target_type) {
             (Primitive::Int8(_), Type::Int8) => true,
@@ -199,7 +297,36 @@ impl Primitive {
 
             (Primitive::Bool(_), Type::Bool) => true,
             (Primitive::Char(_), Type::Char) => true,
+
+            (Primitive::String(_), Type::String) => true,
             _ => false,
+        }
+    }
+
+    pub fn get_type(&self) -> Type {
+        match self {
+            Primitive::Int8(_) => Type::Int8,
+            Primitive::Int16(_) => Type::Int16,
+            Primitive::Int32(_) => Type::Int32,
+            Primitive::Int64(_) => Type::Int64,
+            Primitive::Int(_) => Type::Int,
+            Primitive::Int128(_) => Type::Int128,
+
+            Primitive::UInt8(_) => Type::UInt8,
+            Primitive::UInt16(_) => Type::UInt16,
+            Primitive::UInt32(_) => Type::UInt32,
+            Primitive::UInt64(_) => Type::UInt64,
+            Primitive::UInt(_) => Type::UInt,
+            Primitive::UInt128(_) => Type::UInt128,
+
+            Primitive::Float32(_) => Type::Float32,
+            Primitive::Float64(_) => Type::Float64,
+
+            Primitive::Bool(_) => Type::Bool,
+            Primitive::Char(_) => Type::Char,
+
+            Primitive::String(_) => Type::String,
+            Primitive::None => Type::None,
         }
     }
 
@@ -534,13 +661,16 @@ impl fmt::Display for Primitive {
                 if *a {
                     write!(f, "true")?;
                 } else {
-                    write!(f, "frue")?;
+                    write!(f, "false")?;
                 }
                 Ok(())
             }
 
             // Character Primitive
             Primitive::Char(a) => write!(f, "{:?}", a),
+
+            // String Primitive
+            Primitive::String(u) => write!(f, "{:?}", get_string(*u)),
 
             // NoneType
             Primitive::None => write!(f, "none"),
@@ -569,22 +699,22 @@ pub struct Value {
 }
 
 impl Value {
-    pub fn try_cast_to(&self, target_type: Type) -> Result<Value, ()> {
+    pub fn can_cast_to(&self, target_type: Type) -> bool {
         match &self.inner {
-            ValueType::Primitive(p) => {
-                let res = p.try_cast_to(target_type);
-                let value = match res {
-                    Ok(prim) => Value::from(prim),
-                    Err(_) => return Err(()),
-                };
-                Ok(value)
-            }
+            ValueType::Primitive(p) => p.can_cast_to(target_type),
         }
     }
 
     pub fn is_of_type(&self, target_type: Type) -> bool {
         match &self.inner {
             ValueType::Primitive(prim) => prim.is_of_type(target_type),
+            // ValueType::Complex(compl) => compl.is_of_type(target_type),
+        }
+    }
+
+    pub fn get_type(&self) -> Type {
+        match &self.inner {
+            ValueType::Primitive(prim) => prim.get_type(),
             // ValueType::Complex(compl) => compl.is_of_type(target_type),
         }
     }

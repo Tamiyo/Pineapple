@@ -44,7 +44,7 @@ impl<'a> Scanner<'a> {
     pub fn new(buf: &'a str) -> Self {
         Scanner {
             it: buf.chars().peekable(),
-            line: 0,
+            line: 1,
             column: 0,
         }
     }
@@ -75,7 +75,10 @@ impl<'a> Scanner<'a> {
 
     fn next(&mut self) -> Result<char, ScanError> {
         match self.it.next() {
-            Some(c) => Ok(c),
+            Some(c) => {
+                self.column += 1;
+                Ok(c)
+            }
             None => Err(ScanError::InputStreamEmpty),
         }
     }
@@ -114,10 +117,10 @@ impl<'a> Scanner<'a> {
     fn whitespace(&mut self) -> Result<Option<Symbol>, ScanError> {
         while let Some(ch) = self.it.peek() {
             match ch {
-                '\t' | ' ' => {
+                '\t' | ' ' | '\r' => {
                     self.next()?;
                 }
-                '\n' | '\r' => {
+                '\n' => {
                     self.next()?;
                     self.line += 1;
                     self.column = 0;
@@ -171,6 +174,7 @@ impl<'a> Scanner<'a> {
                 .into_iter()
                 .collect();
             result.push('.');
+            self.column += 1;
             result.push_str(decimal.as_str());
 
             let res_f = match result.parse::<f64>() {
@@ -223,7 +227,6 @@ impl<'a> Scanner<'a> {
      */
     fn keyword(&mut self, name: String) -> Result<Symbol, ScanError> {
         let key = match name.as_str() {
-            // s
             "and" => Symbol::And,
             "elif" => Symbol::Elif,
             "else" => Symbol::Else,
@@ -264,12 +267,15 @@ impl<'a> Scanner<'a> {
             // Character Primitive
             "char" => Symbol::TypeChar,
 
+            // String Primitive
+            "string" => Symbol::TypeString,
+
             // Vector Complex Builtin
             "Vec" => Symbol::TypeVector,
 
             // Tuple Complex Builtin
             "Tuple" => Symbol::TypeTuple,
-            _ => Symbol::Identifier(intern_string(name)),
+            _ => Symbol::Identifier(intern_string(name.clone())),
         };
 
         Ok(key)
@@ -318,8 +324,6 @@ impl<'a> Scanner<'a> {
                     if ch == '\n' || ch == '\r' {
                         self.line += 1;
                         self.column = 0;
-                    } else {
-                        self.column += 1;
                     }
                     ch
                 }

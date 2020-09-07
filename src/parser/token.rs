@@ -82,6 +82,9 @@ pub enum Symbol {
     // Character Primitive
     TypeChar,
 
+    // String Builtin
+    TypeString,
+
     // Vector Complex Builtin
     TypeVector,
 

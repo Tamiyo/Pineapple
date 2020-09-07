@@ -1,3 +1,4 @@
+use crate::bytecode::string_intern::get_string;
 use crate::core::value::Type;
 use crate::parser::ast::Expr;
 use crate::parser::token::{Symbol, Token};
@@ -17,6 +18,7 @@ pub enum ParseError {
     ExpectedLiteral(Token),
     ExpectedLValue(Expr),
     ExpectedVariableType(Token),
+    UndefinedVariable(usize),
 }
 
 impl fmt::Display for ParseError {
@@ -66,7 +68,10 @@ impl fmt::Display for ParseError {
             ParseError::ExpectedVariableType(found) => {
                 let line = found.line;
                 let col = found.col;
-                write!(f, "At {}:{}, Expected a a type, but instead found: `{:?}`.", line, col, *found)
+                write!(f, "At {}:{}, Expected a type, but instead found: `{:?}`.", line, col, *found)
+            }
+            ParseError::UndefinedVariable(sym) => {
+                write!(f, "Undfined Variable {:?}", get_string(*sym))
             }
         }
     }
