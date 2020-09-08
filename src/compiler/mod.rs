@@ -167,6 +167,10 @@ impl Compiler {
             }
             Stmt::StackPushAllReg => self.add_instruction(Instruction::PUSHA),
             Stmt::StackPopAllReg => self.add_instruction(Instruction::POPA),
+            Stmt::CastAs(oper, t) => {
+                let or = self.operand_to_or(oper);
+                self.add_instruction(Instruction::CAST(or, *t));
+            }
             _ => unimplemented!("{:?}", stmt),
         }
     }

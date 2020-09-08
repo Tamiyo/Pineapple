@@ -5,7 +5,7 @@ use crate::core::value::compute_binary;
 use crate::core::{
     binop::BinOp,
     relop::RelOp,
-    value::{compute_logical, Primitive, Value, ValueType},
+    value::{compute_logical, Primitive, Value},
 };
 use crate::{
     bytecode::{Instruction, Label, IR, OR},
@@ -172,6 +172,15 @@ impl VM {
                     self.store_ir(or, ir);
                 }
 
+                Instruction::CAST(ir, t) => {
+                    if let OR::REG(reg) = ir {
+                        match self.register[*reg].try_cast_to(t) {
+                            Ok(_) => (),
+                            Err(_) => return Err("Runtime cast failed".to_string()),
+                        }
+                    }
+                }
+
                 Instruction::ADD(or, ir1, ir2) => {
                     let a = self.load_input_register(ir1);
                     let b = self.load_input_register(ir2);
@@ -313,7 +322,7 @@ impl VM {
 
                 Instruction::POPA => {
                     let top = self.stack_pop();
-                    if let ValueType::Primitive(Primitive::UInt(d)) = top.inner {
+                    if let Primitive::UInt(d) = top.inner {
                         self.return_addr = d;
                     }
 

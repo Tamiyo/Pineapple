@@ -1,4 +1,4 @@
-use crate::bytecode::string_intern::get_string;
+use crate::{bytecode::string_intern::get_string, core::value::Type};
 use crate::core::value::Value;
 use std::fmt;
 
@@ -51,6 +51,8 @@ pub enum Instruction {
     LABEL(Label),
 
     MOV(OR, IR),
+
+    CAST(OR, Type),
 
     ADD(OR, IR, IR),
     SUB(OR, IR, IR),

@@ -30,10 +30,7 @@ use super::ir::{Expr, Oper};
 use crate::compiler::flowgraph::cfg::CFG;
 use crate::core::value::compute_binary;
 use crate::core::value::compute_logical;
-use crate::{
-    compiler::ir::Stmt,
-    core::value::{Primitive, ValueType},
-};
+use crate::{compiler::ir::Stmt, core::value::Primitive};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -99,7 +96,7 @@ pub fn constant_optimization(cfg: &mut CFG) {
             let mut label: Option<usize> = None;
             if let Stmt::CJump(Expr::Oper(operand), l) = &*((s.clone()).borrow()) {
                 if let Oper::Value(value) = operand {
-                    if let ValueType::Primitive(Primitive::Bool(b)) = &value.inner {
+                    if let Primitive::Bool(b) = &value.inner {
                         let (mut modified_statements, jump_label) =
                             cfg.remove_conditional_jump(&s, *b, *l);
                         w.append(&mut modified_statements);

@@ -7,5 +7,6 @@
 }
 
 #main() {
-    print(fibo(9));
+    print(4 as float64);
+    print(fibo(9) as float64);
 }

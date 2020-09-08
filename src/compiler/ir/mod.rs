@@ -1,6 +1,6 @@
-use crate::bytecode::string_intern::get_string;
 use crate::core::binop::BinOp;
 use crate::core::{relop::RelOp, value::Value};
+use crate::{bytecode::string_intern::get_string, core::value::Type};
 use core::cell::RefCell;
 use std::cmp::Eq;
 use std::rc::Rc;
@@ -22,6 +22,8 @@ pub enum Stmt {
     NamedLabel(Label),
     Jump(Label),
     CJump(Expr, Label),
+
+    CastAs(Oper, Type),
 
     Call(Interned, Arity),
 
@@ -69,6 +71,7 @@ impl Stmt {
                 }
                 v
             }
+            // Stmt::CastAs(oper, _) => vec![*oper],
             _ => vec![],
         }
     }
@@ -78,6 +81,7 @@ impl Stmt {
             Stmt::Tac(_, rval) => rval.oper_used(),
             Stmt::CJump(cond, _) => cond.oper_used(),
             Stmt::StackPush(oper) => vec![*oper],
+            Stmt::CastAs(oper, _) => vec![*oper],
             Stmt::ParallelCopy(copies) => {
                 let mut v = vec![];
                 for copy in copies {
@@ -113,6 +117,7 @@ impl Stmt {
             Stmt::Tac(_, rval) => rval.replace_oper_with(a, b),
             Stmt::CJump(cond, _) => cond.replace_oper_with(a, b),
             Stmt::StackPush(oper) => oper.replace_oper_with(a, b),
+            Stmt::CastAs(oper, _) => oper.replace_oper_with(a, b),
             Stmt::ParallelCopy(copies) => {
                 let mut res: bool = true;
                 for copy in copies {
@@ -153,6 +158,7 @@ impl Stmt {
                     copy.borrow_mut().replace_oper_use_with_ssa(value, ssa);
                 }
             }
+            Stmt::CastAs(oper, _) => oper.replace_with_ssa(value, ssa),
             Stmt::Return(oper) => {
                 if let Some(oper) = oper {
                     oper.replace_with_ssa(value, ssa)
@@ -193,6 +199,7 @@ impl fmt::Debug for Stmt {
             Stmt::Tac(lval, rval) => write!(f, "{:?} = {:?}", lval, rval),
             Stmt::Label(label) => write!(f, "_L{}:", label),
             Stmt::NamedLabel(label) => write!(f, "_{}:", get_string(*label)),
+            Stmt::CastAs(oper, t) => write!(f, "cast {:?} as {:?}", oper, t),
             Stmt::Jump(label) => write!(f, "goto _L{:?}", label),
             Stmt::CJump(cond, label) => write!(f, "if {:?} goto _L{:?}", cond, label),
             Stmt::ParallelCopy(copies) => {

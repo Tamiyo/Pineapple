@@ -67,6 +67,7 @@ call ::= primary ( "(" identifier_list ")" | "." IDENTIFIER )*
 primary ::= "true" | "false" | "none" 
             | NUMBER | STRING | IDENTIFIER 
             | "(" expression ")"
+            | "as" type
             | multi_select_list
             | range_expression
 

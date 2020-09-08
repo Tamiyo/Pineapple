@@ -32,6 +32,7 @@ thread_local! {
 enum Precedence {
     None,
     Assign,
+    Cast,
     Or,
     And,
     Equality,
@@ -47,7 +48,8 @@ enum Precedence {
 impl From<Token> for Precedence {
     fn from(token: Token) -> Precedence {
         match *token {
-            Symbol::Colon => Precedence::Assign,
+            Symbol::Colon | Symbol::Equal => Precedence::Assign,
+            Symbol::As => Precedence::Cast,
             Symbol::Or => Precedence::Or,
             Symbol::And => Precedence::And,
             Symbol::NotEqual | Symbol::EqualEqual => Precedence::Equality,
@@ -312,7 +314,7 @@ fn parse_expression_list(
                 } else {
                     Some(args[i])
                 }
-            },
+            }
         };
         expressions.push(parse_expression(Precedence::None, etype)?);
     }
@@ -327,7 +329,7 @@ fn parse_expression_list(
                 } else {
                     Some(args[i])
                 }
-            },
+            }
         };
         expressions.push(parse_expression(Precedence::None, etype)?);
     }
@@ -362,7 +364,8 @@ fn parse_expression(
             | Symbol::GreaterEqual
             | Symbol::NotEqual
             | Symbol::EqualEqual => parse_logical(left, expected_type),
-            Symbol::Colon => parse_assign(left),
+            Symbol::Equal | Symbol::Colon => parse_assign(left),
+            Symbol::As => parse_cast(left, expected_type),
             Symbol::LeftParen => parse_call(left, expected_type),
             _ => Err(ParseError::UnexpectedInfixOperator(peek()?)),
         }
@@ -399,11 +402,32 @@ fn parse_expression(
 }
 
 fn parse_assign(left: &mut Expr) -> Result<Expr, ParseError> {
-    consume(Symbol::Colon)?;
+    let mut expected_type = Type::None;
+    if *peek()? == Symbol::Colon {
+        consume(Symbol::Colon)?;
+        expected_type = consume_type()?;
+        consume(Symbol::Equal)?;
 
-    let expected_type = consume_type()?;
+        if let Expr::Variable(sym) = left {
+            VARS.with(|v| {
+                v.borrow_mut().insert(*sym, expected_type);
+            });
+        }
+    } else {
+        if let Expr::Variable(sym) = left {
+            VARS.with(|v| {
+                match v.borrow().get(sym) {
+                    Some(t) => {
+                        expected_type = *t;
+                        return Ok(());
+                    }
+                    None => return Err(ParseError::UndefinedVariable(*sym)),
+                };
+            })?;
+            consume(Symbol::Equal)?;
+        }
+    }
 
-    consume(Symbol::Equal)?;
     let right = parse_expression(Precedence::None, Some(expected_type))?;
     match left {
         Expr::Variable(identifier) => Ok(Expr::Assign(*identifier, expected_type, Box::new(right))),
@@ -431,6 +455,12 @@ fn parse_call(left: &mut Expr, expected_type: Option<Type>) -> Result<Expr, Pars
     }
     consume(Symbol::RightParen)?;
     Ok(Expr::Call(Box::new(left.clone()), args))
+}
+
+fn parse_cast(left: &mut Expr, expected_type: Option<Type>) -> Result<Expr, ParseError> {
+    consume(Symbol::As)?;
+    let ctype = consume_type()?;
+    Ok(Expr::CastAs(Box::new(left.clone()), ctype))
 }
 
 fn parse_grouping(expected_type: Option<Type>) -> Result<Expr, ParseError> {
@@ -527,6 +557,7 @@ fn parse_logical(left: &mut Expr, expected_type: Option<Type>) -> Result<Expr, P
 fn parse_primary(expected_type: Option<Type>) -> Result<Expr, ParseError> {
     let token = next()?;
     if let Some(expected_type) = expected_type {
+        // If some type exists for this function we will try to infer
         match token.sym {
             Symbol::IntegerLiteral(number) => {
                 if let Type::Int8
@@ -537,7 +568,7 @@ fn parse_primary(expected_type: Option<Type>) -> Result<Expr, ParseError> {
                 | Type::Int128 = expected_type
                 {
                     let number: i128 = number as i128;
-                    let prim = match Primitive::Int128(number).try_cast_to(expected_type) {
+                    let prim = match Primitive::Int128(number).try_inference_to(&expected_type) {
                         Ok(p) => p,
                         Err(()) => return Err(ParseError::CastError(token, expected_type)),
                     };
@@ -552,7 +583,7 @@ fn parse_primary(expected_type: Option<Type>) -> Result<Expr, ParseError> {
                 | Type::UInt128 = expected_type
                 {
                     let number: u128 = number as u128;
-                    let prim = match Primitive::UInt128(number).try_cast_to(expected_type) {
+                    let prim = match Primitive::UInt128(number).try_inference_to(&expected_type) {
                         Ok(p) => p,
                         Err(()) => return Err(ParseError::CastError(token, expected_type)),
                     };
@@ -561,7 +592,7 @@ fn parse_primary(expected_type: Option<Type>) -> Result<Expr, ParseError> {
             }
             Symbol::FloatLiteral(number) => {
                 let prim = match Primitive::Float64(DistanceF64::from(number as f64))
-                    .try_cast_to(expected_type)
+                    .try_inference_to(&expected_type)
                 {
                     Ok(p) => p,
                     Err(()) => return Err(ParseError::CastError(token, expected_type)),
@@ -577,6 +608,7 @@ fn parse_primary(expected_type: Option<Type>) -> Result<Expr, ParseError> {
             _ => return Err(ParseError::ExpectedLiteral(token)),
         }
     } else {
+        // If no type exists, we'll give it a filler type for now
         match token.sym {
             Symbol::IntegerLiteral(number) => {
                 return Ok(Expr::Value(Value::from(Primitive::UInt(number as usize))));

@@ -1,6 +1,7 @@
 use crate::compiler::dominator::compute_dominator_context;
 use crate::compiler::flowgraph::cfg::CFG;
 use crate::compiler::ir::ssa::construct_ssa;
+use crate::compiler::ir::ssa::destruct_ssa;
 use crate::compiler::optimizer::constant_optimization;
 use crate::compiler::register_allocation::register_allocation;
 use crate::compiler::transformer::linearcode::LinearCodeTransformer;
@@ -10,6 +11,7 @@ use crate::parser::scanner::Scanner;
 use crate::semantic_analysis::binding_check_ast;
 use crate::semantic_analysis::type_check_ast;
 use crate::vm::VM;
+use std::time::Instant;
 // use crate::parser::Parser;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -31,7 +33,7 @@ pub struct Cli {
     pub debug: bool,
 
     #[structopt(short, long)]
-    pub verbose: bool,
+    pub profile: bool,
 
     #[structopt(short = "o", long = "optimize")]
     pub optimize: bool,
@@ -75,13 +77,24 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
         }
     };
 
+    let start = Instant::now();
     let ast = match parse_program(tokens) {
         Ok(a) => a,
         Err(e) => {
             return Err(format!("{}", e));
         }
     };
+    let duration = start.elapsed();
 
+    if args.profile {
+        println!(
+            "{:<24}{:}μs",
+            "Build AST",
+            format!("{:?}", duration.as_micros())
+        );
+    }
+
+    let start = Instant::now();
     match type_check_ast(&ast) {
         Ok(_) => (),
         Err(e) => {
@@ -95,10 +108,33 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
             return Err(format!("{}", e));
         }
     }
+    let duration = start.elapsed();
 
+    if args.profile {
+        println!(
+            "{:<24}{}μs",
+            "Semantic Analysis",
+            format!("{:?}", duration.as_micros())
+        );
+    }
+
+    let start = Instant::now();
     let mut lcs = LinearCodeTransformer::new();
     let linear_code_blocks = lcs.translate(ast);
+    let duration = start.elapsed();
 
+    if args.profile {
+        println!(
+            "{:<24}{}μs",
+            "AST to LinearCode",
+            format!("{:?}", duration.as_micros())
+        );
+    }
+
+    // cfg performance
+    let mut opt_duration: u128 = 0;
+
+    let start = Instant::now();
     let mut cfgs: Vec<CFG> = vec![];
     for linear_code in linear_code_blocks {
         let mut cfg = CFG::from(&linear_code);
@@ -106,11 +142,10 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
         compute_dominator_context(&mut cfg);
         construct_ssa(&mut cfg);
 
-        // Optimizations go here
-        construct_ssa(&mut cfg);
-
         if args.optimize {
+            let opt_start = Instant::now();
             constant_optimization(&mut cfg);
+            opt_duration += opt_start.elapsed().as_micros();
             if args.debug {
                 println!("::CFG OPTIMIZED::");
                 println!("{:?}", cfg);
@@ -121,10 +156,26 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
                 println!("{:?}", cfg);
             }
         }
+        destruct_ssa(&mut cfg);
 
         register_allocation(&mut cfg);
 
         cfgs.push(cfg);
+    }
+    let duration = start.elapsed();
+
+    if args.profile {
+        println!(
+            "{:<24}{}μs",
+            "CFGs Creation + Opt",
+            format!("{:?}", duration.as_micros())
+        );
+
+        println!(
+            "{:<24}{}μs\n",
+            "Optimization",
+            format!("{:?}", opt_duration)
+        );
     }
 
     let module = {
@@ -142,10 +193,20 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     }
 
     let mut vm = VM::new();
+    let start = Instant::now();
     match vm.dispatch(&module) {
         Ok(()) => (),
         Err(e) => panic!(e),
     };
+    let duration = start.elapsed();
+
+    if args.profile {
+        println!(
+            "\n{:<24}{}μs",
+            "VM Execution",
+            format!("{:?}", duration.as_micros())
+        );
+    }
 
     Ok(())
 }

@@ -228,6 +228,7 @@ impl<'a> Scanner<'a> {
     fn keyword(&mut self, name: String) -> Result<Symbol, ScanError> {
         let key = match name.as_str() {
             "and" => Symbol::And,
+            "as" => Symbol::As,
             "elif" => Symbol::Elif,
             "else" => Symbol::Else,
             "false" => Symbol::False,

@@ -41,6 +41,7 @@ pub enum Symbol {
     Fun,
     Var,
     And,
+    As,
     Elif,
     Else,
     False,

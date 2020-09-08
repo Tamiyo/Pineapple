@@ -279,13 +279,45 @@ impl LinearCodeTransformer {
     fn translate_expression(&mut self, expr: &ast::Expr, is_cond: bool, block: &mut Block) -> Oper {
         match expr {
             ast::Expr::Value(value) => Oper::Value(value.clone()),
-            // ast::Expr::String(n) => Oper::Value(Constant::String(*n)),
             ast::Expr::Variable(n) => Oper::Var(*n, 0),
             ast::Expr::Assign(n, _, l) => self.translate_assign(n, l, block),
             ast::Expr::Call(n, args) => self.translate_call(n, args, block),
             ast::Expr::Binary(l, o, r) => self.translate_binary(l, o, r, block),
             ast::Expr::Logical(l, o, r) => self.translate_logical(l, o, r, block),
             ast::Expr::Grouping(e) => self.translate_expression(e, is_cond, block),
+            ast::Expr::CastAs(e, t) => self.translate_cast(e, t, is_cond, block),
+        }
+    }
+
+    fn translate_cast(
+        &mut self,
+        expr: &ast::Expr,
+        t: &Type,
+        is_cond: bool,
+        block: &mut Block,
+    ) -> Oper {
+        if let ast::Expr::Variable(n) = expr {
+            let temp = self.new_temporary();
+            block.push(Stmt::Tac(temp, Expr::Oper(Oper::Var(*n, 0))));
+
+            let res = self.translate_expression(expr, is_cond, block);
+            block.push(Stmt::CastAs(temp, *t));
+            temp
+        } else if let ast::Expr::Value(v) = expr {
+            let temp = self.new_temporary();
+            block.push(Stmt::Tac(temp, Expr::Oper(Oper::Value(*v))));
+
+            let res = self.translate_expression(expr, is_cond, block);
+            block.push(Stmt::CastAs(temp, *t));
+            temp
+        } else if let ast::Expr::Call(n, e) = expr {
+            let temp = self.new_temporary();
+            let res = self.translate_expression(expr, is_cond, block);
+            block.push(Stmt::Tac(temp, Expr::Oper(res)));
+            block.push(Stmt::CastAs(temp, *t));
+            temp
+        } else {
+            panic!("")
         }
     }
 

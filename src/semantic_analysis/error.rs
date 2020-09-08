@@ -34,7 +34,7 @@ impl fmt::Display for TypeError {
                 write!(f, "Invalid Value Type for {:?}. Expected {:?} instead.", value, expected_type)
             }
             TypeError::InvalidVariableType(value, actual_type, expected_type) => {
-                write!(f, "Invalid Variable Type for {:?}. Expected {:?} but got {:?}", get_string(*value), actual_type, expected_type)
+                write!(f, "Invalid type for {:?}. Expected {:?} but got {:?}", get_string(*value), actual_type, expected_type)
             }
             TypeError::ExpectedNestedType(expr) => {
                 write!(f, "Expected {:?} to have a type. This is an internal error and you should flame the compiler engineer.", expr)

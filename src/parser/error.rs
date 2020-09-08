@@ -35,7 +35,7 @@ impl fmt::Display for ParseError {
             ParseError::UnexpectedToken(found, expected) => {
                 let line = found.line;
                 let col = found.col;
-                write!(f, "At {}:{}. Encountered an unexpected token while parsing. Expected: `{:?}` but instead found: `{:?}`.", line, col, expected, &found)
+                write!(f, "At {}:{}. Encountered an unexpected token while parsing. Expected: `{:?}` but instead found: `{:?}`.", line, col, found, expected)
             }
             ParseError::UnexpectedInfixOperator(found) => {
                 let line = found.line;
@@ -71,7 +71,7 @@ impl fmt::Display for ParseError {
                 write!(f, "At {}:{}, Expected a type, but instead found: `{:?}`.", line, col, *found)
             }
             ParseError::UndefinedVariable(sym) => {
-                write!(f, "Undfined Variable {:?}", get_string(*sym))
+                write!(f, "Undefined Variable {:?}", get_string(*sym))
             }
         }
     }

@@ -3,6 +3,7 @@ use crate::bytecode::string_intern::get_string;
 use crate::bytecode::{distancef32::DistanceF32, distancef64::DistanceF64};
 use crate::core::binop::BinOp;
 use core::fmt;
+use lazy_static::lazy_static;
 
 type TupleSize = usize;
 type Sym = usize;
@@ -10,7 +11,6 @@ type Sym = usize;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Type {
-    // Integer Primitives
     Int8,
     Int16,
     Int32,
@@ -25,21 +25,15 @@ pub enum Type {
     UInt128,
     UInt,
 
-    // Floating PoInt Primitives
     Float32,
     Float64,
 
-    // Boolean Primitive
     Bool,
 
     Char,
 
     String,
 
-    // Vector,
-
-    // // Tuple Complex
-    // Tuple,
     None,
 }
 
@@ -72,12 +66,12 @@ pub enum Primitive {
 
     String(usize),
 
-    // NoneType
+    // None Primitive
     None,
 }
 
 impl Primitive {
-    pub fn try_cast_to(&self, new_type: Type) -> Result<Primitive, ()> {
+    pub fn try_inference_to(&self, new_type: &Type) -> Result<Primitive, ()> {
         match (self, new_type) {
             (Primitive::Int8(a), Type::Int8) => Ok(Primitive::Int8(*a as i8)),
             (Primitive::Int8(a), Type::Int16) => Ok(Primitive::Int16(*a as i16)),
@@ -179,7 +173,351 @@ impl Primitive {
         }
     }
 
-    pub fn can_cast_to(&self, new_type: Type) -> bool {
+    pub fn try_cast_to(&self, new_type: &Type) -> Result<Primitive, ()> {
+        match (self, new_type) {
+            (Primitive::Int8(a), Type::Int8) => Ok(Primitive::Int8(*a as i8)),
+            (Primitive::Int8(a), Type::Int16) => Ok(Primitive::Int16(*a as i16)),
+            (Primitive::Int8(a), Type::Int32) => Ok(Primitive::Int32(*a as i32)),
+            (Primitive::Int8(a), Type::Int64) => Ok(Primitive::Int64(*a as i64)),
+            (Primitive::Int8(a), Type::Int) => Ok(Primitive::Int(*a as isize)),
+            (Primitive::Int8(a), Type::Int128) => Ok(Primitive::Int128(*a as i128)),
+            (Primitive::Int8(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::Int8(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::Int8(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::Int8(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::Int8(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::Int8(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::Int8(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::Int8(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::Int16(a), Type::Int8) => Ok(Primitive::Int8(*a as i8)),
+            (Primitive::Int16(a), Type::Int16) => Ok(Primitive::Int16(*a as i16)),
+            (Primitive::Int16(a), Type::Int32) => Ok(Primitive::Int32(*a as i32)),
+            (Primitive::Int16(a), Type::Int64) => Ok(Primitive::Int64(*a as i64)),
+            (Primitive::Int16(a), Type::Int) => Ok(Primitive::Int(*a as isize)),
+            (Primitive::Int16(a), Type::Int128) => Ok(Primitive::Int128(*a as i128)),
+            (Primitive::Int16(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::Int16(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::Int16(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::Int16(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::Int16(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::Int16(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::Int16(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::Int16(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::Int32(a), Type::Int8) => Ok(Primitive::Int8(*a as i8)),
+            (Primitive::Int32(a), Type::Int16) => Ok(Primitive::Int16(*a as i16)),
+            (Primitive::Int32(a), Type::Int32) => Ok(Primitive::Int32(*a as i32)),
+            (Primitive::Int32(a), Type::Int64) => Ok(Primitive::Int64(*a as i64)),
+            (Primitive::Int32(a), Type::Int) => Ok(Primitive::Int(*a as isize)),
+            (Primitive::Int32(a), Type::Int128) => Ok(Primitive::Int128(*a as i128)),
+            (Primitive::Int32(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::Int32(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::Int32(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::Int32(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::Int32(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::Int32(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::Int32(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::Int32(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::Int64(a), Type::Int8) => Ok(Primitive::Int8(*a as i8)),
+            (Primitive::Int64(a), Type::Int16) => Ok(Primitive::Int16(*a as i16)),
+            (Primitive::Int64(a), Type::Int32) => Ok(Primitive::Int32(*a as i32)),
+            (Primitive::Int64(a), Type::Int64) => Ok(Primitive::Int64(*a as i64)),
+            (Primitive::Int64(a), Type::Int) => Ok(Primitive::Int(*a as isize)),
+            (Primitive::Int64(a), Type::Int128) => Ok(Primitive::Int128(*a as i128)),
+            (Primitive::Int64(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::Int64(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::Int64(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::Int64(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::Int64(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::Int64(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::Int64(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::Int64(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::Int(a), Type::Int8) => Ok(Primitive::Int8(*a as i8)),
+            (Primitive::Int(a), Type::Int16) => Ok(Primitive::Int16(*a as i16)),
+            (Primitive::Int(a), Type::Int32) => Ok(Primitive::Int32(*a as i32)),
+            (Primitive::Int(a), Type::Int64) => Ok(Primitive::Int64(*a as i64)),
+            (Primitive::Int(a), Type::Int) => Ok(Primitive::Int(*a as isize)),
+            (Primitive::Int(a), Type::Int128) => Ok(Primitive::Int128(*a as i128)),
+            (Primitive::Int(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::Int(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::Int(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::Int(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::Int(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::Int(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::Int(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::Int(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::Int128(a), Type::Int8) => Ok(Primitive::Int8(*a as i8)),
+            (Primitive::Int128(a), Type::Int16) => Ok(Primitive::Int16(*a as i16)),
+            (Primitive::Int128(a), Type::Int32) => Ok(Primitive::Int32(*a as i32)),
+            (Primitive::Int128(a), Type::Int64) => Ok(Primitive::Int64(*a as i64)),
+            (Primitive::Int128(a), Type::Int) => Ok(Primitive::Int(*a as isize)),
+            (Primitive::Int128(a), Type::Int128) => Ok(Primitive::Int128(*a as i128)),
+            (Primitive::Int128(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::Int128(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::Int128(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::Int128(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::Int128(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::Int128(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::Int128(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::Int128(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::UInt8(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt8(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt8(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt8(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt8(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt8(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt8(a), Type::Int8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt8(a), Type::Int16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt8(a), Type::Int32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt8(a), Type::Int64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt8(a), Type::Int) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt8(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt8(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::UInt8(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::UInt16(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt16(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt16(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt16(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt16(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt16(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt16(a), Type::Int8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt16(a), Type::Int16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt16(a), Type::Int32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt16(a), Type::Int64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt16(a), Type::Int) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt16(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt16(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::UInt16(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::UInt32(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt32(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt32(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt32(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt32(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt32(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt32(a), Type::Int8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt32(a), Type::Int16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt32(a), Type::Int32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt32(a), Type::Int64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt32(a), Type::Int) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt32(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt32(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::UInt32(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::UInt64(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt64(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt64(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt64(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt64(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt64(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt64(a), Type::Int8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt64(a), Type::Int16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt64(a), Type::Int32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt64(a), Type::Int64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt64(a), Type::Int) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt64(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt64(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::UInt64(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::UInt(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt(a), Type::Int8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt(a), Type::Int16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt(a), Type::Int32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt(a), Type::Int64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt(a), Type::Int) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::UInt(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            (Primitive::UInt128(a), Type::UInt8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt128(a), Type::UInt16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt128(a), Type::UInt32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt128(a), Type::UInt64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt128(a), Type::UInt) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt128(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt128(a), Type::Int8) => Ok(Primitive::UInt8(*a as u8)),
+            (Primitive::UInt128(a), Type::Int16) => Ok(Primitive::UInt16(*a as u16)),
+            (Primitive::UInt128(a), Type::Int32) => Ok(Primitive::UInt32(*a as u32)),
+            (Primitive::UInt128(a), Type::Int64) => Ok(Primitive::UInt64(*a as u64)),
+            (Primitive::UInt128(a), Type::Int) => Ok(Primitive::UInt(*a as usize)),
+            (Primitive::UInt128(a), Type::UInt128) => Ok(Primitive::UInt128(*a as u128)),
+            (Primitive::UInt128(a), Type::Float32) => {
+                Ok(Primitive::Float32(DistanceF32::from(*a as f32)))
+            }
+            (Primitive::UInt128(a), Type::Float64) => {
+                Ok(Primitive::Float64(DistanceF64::from(*a as f64)))
+            }
+
+            // Float64
+            (Primitive::Float64(a), Type::Float32) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::Float32(DistanceF32::from(af64 as f32)))
+            }
+            (Primitive::Float64(a), Type::Float64) => Ok(Primitive::Float64(*a)),
+            (Primitive::Float64(a), Type::Int8) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::Int8(af64 as i8))
+            }
+            (Primitive::Float64(a), Type::Int16) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::Int16(af64 as i16))
+            }
+            (Primitive::Float64(a), Type::Int32) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::Int32(af64 as i32))
+            }
+            (Primitive::Float64(a), Type::Int64) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::Int64(af64 as i64))
+            }
+            (Primitive::Float64(a), Type::Int) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::Int(af64 as isize))
+            }
+            (Primitive::Float64(a), Type::Int128) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::Int128(af64 as i128))
+            }
+            (Primitive::Float64(a), Type::UInt8) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::UInt8(af64 as u8))
+            }
+            (Primitive::Float64(a), Type::UInt16) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::UInt16(af64 as u16))
+            }
+            (Primitive::Float64(a), Type::UInt32) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::UInt32(af64 as u32))
+            }
+            (Primitive::Float64(a), Type::UInt64) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::UInt64(af64 as u64))
+            }
+            (Primitive::Float64(a), Type::UInt) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::UInt(af64 as usize))
+            }
+            (Primitive::Float64(a), Type::UInt128) => {
+                let af64: f64 = a.into();
+                Ok(Primitive::UInt128(af64 as u128))
+            }
+
+            // Float32
+            (Primitive::Float32(a), Type::Float32) => Ok(Primitive::Float32(*a)),
+            (Primitive::Float32(a), Type::Float64) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::Float64(DistanceF64::from(af32 as f64)))
+            }
+            (Primitive::Float32(a), Type::Int8) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::Int8(af32 as i8))
+            }
+            (Primitive::Float32(a), Type::Int16) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::Int16(af32 as i16))
+            }
+            (Primitive::Float32(a), Type::Int32) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::Int32(af32 as i32))
+            }
+            (Primitive::Float32(a), Type::Int64) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::Int64(af32 as i64))
+            }
+            (Primitive::Float32(a), Type::Int) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::Int(af32 as isize))
+            }
+            (Primitive::Float32(a), Type::Int128) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::Int128(af32 as i128))
+            }
+            (Primitive::Float32(a), Type::UInt8) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::UInt8(af32 as u8))
+            }
+            (Primitive::Float32(a), Type::UInt16) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::UInt16(af32 as u16))
+            }
+            (Primitive::Float32(a), Type::UInt32) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::UInt32(af32 as u32))
+            }
+            (Primitive::Float32(a), Type::UInt64) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::UInt64(af32 as u64))
+            }
+            (Primitive::Float32(a), Type::UInt) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::UInt(af32 as usize))
+            }
+            (Primitive::Float32(a), Type::UInt128) => {
+                let af32: f32 = a.into();
+                Ok(Primitive::UInt128(af32 as u128))
+            }
+
+            _ => Err(()),
+        }
+    }
+
+    pub fn can_inference_to(&self, new_type: &Type) -> bool {
         match (self, new_type) {
             (Primitive::Int8(a), Type::Int8) => true,
             (Primitive::Int8(a), Type::Int16) => true,
@@ -276,7 +614,7 @@ impl Primitive {
         }
     }
 
-    pub fn is_of_type(&self, target_type: Type) -> bool {
+    pub fn is_of_type(&self, target_type: &Type) -> bool {
         match (self, target_type) {
             (Primitive::Int8(_), Type::Int8) => true,
             (Primitive::Int16(_), Type::Int16) => true,
@@ -614,27 +952,6 @@ impl Primitive {
     }
 }
 
-// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-// pub enum Complex {
-//     // Array Complex
-//     // Array's size can change but all elements must be the same type
-//     Vector(Vec<Value>, Type),
-
-//     // Tuple Complex
-//     // Tuple's size cannot change but elements can be different types
-//     Tuple(Vec<Value>, TupleSize),
-
-//     String(Sym),
-// }
-
-// impl Complex {
-//     pub fn is_of_type(&self, target_type: Type) -> bool {
-//         match (self, target_type) {
-//             _ => false,
-//         }
-//     }
-// }
-
 impl fmt::Display for Primitive {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
@@ -679,144 +996,74 @@ impl fmt::Display for Primitive {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum ValueType {
-    Primitive(Primitive),
-    // Complex(Complex),
-}
-
-impl fmt::Display for ValueType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        match self {
-            ValueType::Primitive(p) => write!(f, "{}", p),
-            // ValueType::Complex(c) => write!(f, "{:?}", c),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Value {
-    pub inner: ValueType,
+    pub inner: Primitive,
 }
 
 impl Value {
-    pub fn can_cast_to(&self, target_type: Type) -> bool {
-        match &self.inner {
-            ValueType::Primitive(p) => p.can_cast_to(target_type),
-        }
+    pub fn can_cast_to(&self, target_type: &Type) -> bool {
+        self.inner.can_inference_to(target_type)
     }
 
-    pub fn is_of_type(&self, target_type: Type) -> bool {
-        match &self.inner {
-            ValueType::Primitive(prim) => prim.is_of_type(target_type),
-            // ValueType::Complex(compl) => compl.is_of_type(target_type),
-        }
+    pub fn try_cast_to(&mut self, target_type: &Type) -> Result<(), ()> {
+        self.inner = self.inner.try_cast_to(target_type)?;
+        Ok(())
+    }
+
+    pub fn is_of_type(&self, target_type: &Type) -> bool {
+        self.inner.is_of_type(target_type)
     }
 
     pub fn get_type(&self) -> Type {
-        match &self.inner {
-            ValueType::Primitive(prim) => prim.get_type(),
-            // ValueType::Complex(compl) => compl.is_of_type(target_type),
-        }
+        self.inner.get_type()
     }
 
     fn add(left: Value, right: Value) -> Value {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Value::from(Primitive::add(p1, p2))
-            }
-            _ => unimplemented!(),
-        }
+        Value::from(Primitive::add(left.inner, right.inner))
     }
 
     fn sub(left: Value, right: Value) -> Value {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Value::from(Primitive::sub(p1, p2))
-            }
-            _ => unimplemented!(),
-        }
+        Value::from(Primitive::sub(left.inner, right.inner))
     }
 
     fn mul(left: Value, right: Value) -> Value {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Value::from(Primitive::mul(p1, p2))
-            }
-            _ => unimplemented!(),
-        }
+        Value::from(Primitive::mul(left.inner, right.inner))
     }
 
     fn div(left: Value, right: Value) -> Value {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Value::from(Primitive::div(p1, p2))
-            }
-            _ => unimplemented!(),
-        }
+        Value::from(Primitive::div(left.inner, right.inner))
     }
 
     fn pow(left: Value, right: Value) -> Value {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Value::from(Primitive::pow(p1, p2))
-            }
-            _ => unimplemented!(),
-        }
+        Value::from(Primitive::pow(left.inner, right.inner))
     }
 
     fn rem(left: Value, right: Value) -> Value {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Value::from(Primitive::rem(p1, p2))
-            }
-            _ => unimplemented!(),
-        }
+        Value::from(Primitive::rem(left.inner, right.inner))
     }
 
     fn less_than(left: Value, right: Value) -> bool {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => Primitive::less_than(p1, p2),
-            _ => unimplemented!(),
-        }
+        Primitive::less_than(left.inner, right.inner)
     }
 
     fn less_than_equal(left: Value, right: Value) -> bool {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Primitive::less_than_equal(p1, p2)
-            }
-            _ => unimplemented!(),
-        }
+        Primitive::less_than_equal(left.inner, right.inner)
     }
 
     fn greater_than(left: Value, right: Value) -> bool {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => Primitive::greater_than(p1, p2),
-            _ => unimplemented!(),
-        }
+        Primitive::greater_than(left.inner, right.inner)
     }
 
     fn greater_than_equal(left: Value, right: Value) -> bool {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => {
-                Primitive::greater_than_equal(p1, p2)
-            }
-            _ => unimplemented!(),
-        }
+        Primitive::greater_than_equal(left.inner, right.inner)
     }
 
     fn equal(left: Value, right: Value) -> bool {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => Primitive::equal(p1, p2),
-            _ => unimplemented!(),
-        }
+        Primitive::equal(left.inner, right.inner)
     }
 
     fn not_equal(left: Value, right: Value) -> bool {
-        match (left.inner, right.inner) {
-            (ValueType::Primitive(p1), ValueType::Primitive(p2)) => !Primitive::equal(p1, p2),
-            _ => unimplemented!(),
-        }
+        !Primitive::equal(left.inner, right.inner)
     }
 }
 
@@ -828,19 +1075,9 @@ impl fmt::Display for Value {
 
 impl From<Primitive> for Value {
     fn from(other: Primitive) -> Self {
-        Self {
-            inner: ValueType::Primitive(other),
-        }
+        Self { inner: other }
     }
 }
-
-// impl From<Complex> for Value {
-//     fn from(other: Complex) -> Self {
-//         Self {
-//             inner: ValueType::Complex(other),
-//         }
-//     }
-// }
 
 pub fn compute_binary(left: Value, op: BinOp, right: Value) -> Value {
     match op {

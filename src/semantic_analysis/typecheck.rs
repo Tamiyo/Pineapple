@@ -150,7 +150,7 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<Option<Type>, 
         }
         Expr::Value(value) => {
             if let Some(expected_type) = expected_type {
-                if !value.can_cast_to(expected_type) {
+                if !value.can_cast_to(&expected_type) {
                     return Err(TypeError::InvalidValueType(value.clone(), expected_type));
                 } else {
                     Ok(Some(expected_type))
@@ -184,7 +184,7 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<Option<Type>, 
 
                 for i in 0..args.len() {
                     if let Expr::Value(value) = args[i] {
-                        if !value.can_cast_to(fargs[i].1) {
+                        if !value.can_cast_to(&fargs[i].1) {
                             return Err(TypeError::InvalidValueType(value, fargs[i].1));
                         }
                     } else if let Expr::Variable(sym) = args[i] {
@@ -211,6 +211,10 @@ fn check_expr(expr: &Expr, expected_type: Option<Type>) -> Result<Option<Type>, 
                 return Ok(Some(ftype));
             }
             Err(TypeError::ExpectedNestedType(left.as_ref().clone()))
+        }
+        Expr::CastAs(left, etype) => {
+            check_expr(left, None)?;
+            Ok(Some(*etype))
         }
         _ => unimplemented!(),
     }

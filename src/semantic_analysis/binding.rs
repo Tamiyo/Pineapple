@@ -225,6 +225,7 @@ impl Binder {
             Expr::Logical(ref left, _, ref right) => self.compile_logical(left, right),
             Expr::Grouping(ref expr) => self.compile_grouping(expr),
             Expr::Call(ref callee, ref arguments) => self.compile_call(callee, arguments),
+            Expr::CastAs(ref expr, _) => self.compile_expression(expr),
             _ => unimplemented!("{:?}", expr),
         }?;
         Ok(())
