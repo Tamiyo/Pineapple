@@ -11,12 +11,12 @@ Pineapple compiles to Pineapple Bytecode that resembles assembly architectures. 
 - The language is statically typed.
 
 - The language has many primitive types: (
-    &nbsp;&nbsp;&nbsp;&nbsp;*UInt8*, *UInt16*, *UInt32*, *UInt64*, *UInt*, *UInt128*,
-    &nbsp;&nbsp;&nbsp;&nbsp;*Int8*, *Int16*, *Int32*, *Int64*, *Int*, *Int128*,
-    &nbsp;&nbsp;&nbsp;&nbsp;*Float32*, *Float64*
-    &nbsp;&nbsp;&nbsp;&nbsp;*Bool*,
-    &nbsp;&nbsp;&nbsp;&nbsp;*String*
-)
+    <br>&nbsp;&nbsp;&nbsp;&nbsp;*UInt8*, *UInt16*, *UInt32*, *UInt64*, *UInt*, *UInt128*,
+    <br>&nbsp;&nbsp;&nbsp;&nbsp;*Int8*, *Int16*, *Int32*, *Int64*, *Int*, *Int128*,
+    <br>&nbsp;&nbsp;&nbsp;&nbsp;*Float32*, *Float64*
+    <br>&nbsp;&nbsp;&nbsp;&nbsp;*Bool*,
+    <br>&nbsp;&nbsp;&nbsp;&nbsp;*String*
+<br>)
 
 - The compiler supports type casting.
   
