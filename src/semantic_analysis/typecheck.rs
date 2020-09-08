@@ -83,7 +83,14 @@ fn check_stmt(stmt: &Stmt, expected_type: Option<Type>) -> Result<(), TypeError>
         Stmt::Print(_) => Ok(()),
         Stmt::Return(expr) => {
             if let Some(expr) = expr {
-                check_expr(expr, expected_type)?;
+                let rtype = check_expr(expr, expected_type)?;
+                if rtype != expected_type {
+                    return Err(TypeError::InvalidReturnType(
+                        stmt.clone(),
+                        rtype.unwrap(),
+                        expected_type.unwrap(),
+                    ));
+                }
             }
             Ok(())
         }

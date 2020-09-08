@@ -11,12 +11,12 @@ use std::ops;
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DistanceF32 {
     mantissa: u32,
-    exponent: i16,
+    exponent: i8,
     sign: i8,
 }
 
 impl DistanceF32 {
-    pub fn new(mantissa: u32, exponent: i16, sign: i8) -> Self {
+    pub fn new(mantissa: u32, exponent: i8, sign: i8) -> Self {
         DistanceF32 {
             mantissa,
             exponent,
@@ -29,14 +29,14 @@ impl From<f32> for DistanceF32 {
     fn from(item: f32) -> Self {
         let bits: u32 = item.to_bits();
         let sign: i8 = if bits >> 31 == 0 { 1 } else { -1 };
-        let mut exponent: i16 = ((bits >> 23) & 0x7ff) as i16;
+        let mut exponent: i8 = ((bits >> 23) & 0xFF) as i8;
         let mantissa = if exponent == 0 {
             (bits & 0x000f_ffff) << 1
         } else {
             (bits & 0x000f_ffff) | 0x0010_0000
         };
 
-        exponent -= 1023 + 52;
+        exponent -= 16 + 23;
 
         DistanceF32 {
             mantissa,

@@ -316,8 +316,22 @@ impl LinearCodeTransformer {
             block.push(Stmt::Tac(temp, Expr::Oper(res)));
             block.push(Stmt::CastAs(temp, *t));
             temp
+        } else if let ast::Expr::Grouping(e) = expr {
+            self.translate_cast(e, t, is_cond, block)
+        } else if let ast::Expr::Binary(left, op, right) = expr {
+            let temp = self.new_temporary();
+            let res = self.translate_binary(left, op, right, block);
+            block.push(Stmt::Tac(temp, Expr::Oper(res)));
+            block.push(Stmt::CastAs(temp, *t));
+            temp
+        } else if let ast::Expr::Logical(left, op, right) = expr {
+            let temp = self.new_temporary();
+            let res = self.translate_logical(left, op, right, block);
+            block.push(Stmt::Tac(temp, Expr::Oper(res)));
+            block.push(Stmt::CastAs(temp, *t));
+            temp
         } else {
-            panic!("")
+            panic!(format!("{:?}", expr))
         }
     }
 

@@ -1,12 +1,10 @@
-#fibo(n: int): int {
-    if (n <= 1) {
-        return n;
-    } else {
-        return fibo(n - 1) + fibo(n - 2);
-    }
+#add(a: int8, b: uint8): float32 {
+    return (((a as uint8) + b) as float32);
 }
 
 #main() {
-    print(4 as float64);
-    print(fibo(9) as float64);
+    a: int8 = 4;
+    b: uint8 = 7;
+    c: float32 = 5.0;
+    print(add(a, b), c);
 }

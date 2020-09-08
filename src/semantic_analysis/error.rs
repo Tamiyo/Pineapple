@@ -1,4 +1,4 @@
-use crate::parser::ast::Expr;
+use crate::parser::ast::{Expr, Stmt};
 use crate::bytecode::string_intern::get_string;
 use crate::core::value::Type;
 use crate::core::value::Value;
@@ -21,6 +21,7 @@ impl fmt::Display for BindingError {
 pub enum TypeError {
     InvalidValueType(Value, Type),
     InvalidVariableType(Sym, Type, Type),
+    InvalidReturnType(Stmt, Type, Type),
     ExpectedNestedType(Expr),
     UndefinedVariable(Sym),
     UndefinedFunction(Sym),
@@ -35,6 +36,9 @@ impl fmt::Display for TypeError {
             }
             TypeError::InvalidVariableType(value, actual_type, expected_type) => {
                 write!(f, "Invalid type for {:?}. Expected {:?} but got {:?}", get_string(*value), actual_type, expected_type)
+            }
+            TypeError::InvalidReturnType(expr, actual_type, expected_type) => {
+                write!(f, "Invalid return type at {:?}. Expected {:?} but got {:?}", expr, actual_type, expected_type)
             }
             TypeError::ExpectedNestedType(expr) => {
                 write!(f, "Expected {:?} to have a type. This is an internal error and you should flame the compiler engineer.", expr)
