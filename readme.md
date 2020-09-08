@@ -82,3 +82,20 @@ cargo run {FILE_NAME} {ARGS}
 ```
 >> 11.0
 ```
+
+#### While Loops
+```
+#main() {
+    i: int8 = 0;
+    while (i < 5) {
+        print(i);
+        i = i + 1;
+    }
+}
+```
+```
+>> 1
+2
+3
+4
+```
