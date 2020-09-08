@@ -216,11 +216,25 @@ fn parse_identifier_list() -> Result<Vec<(usize, Type)>, ParseError> {
 fn parse_statement() -> Result<Stmt, ParseError> {
     match *peek()? {
         Symbol::If => parse_if_statement(),
-        // Symbol::While => parse_while_statement(),
+        Symbol::While => parse_while_statement(),
         Symbol::Print => parse_print_statement(),
         Symbol::Return => parse_return_statement(),
         _ => parse_expression_statement(),
     }
+}
+
+fn parse_while_statement() -> Result<Stmt, ParseError> {
+    consume(Symbol::While)?;
+    consume(Symbol::LeftParen)?;
+    let while_condition = parse_expression(Precedence::None, None)?;
+    consume(Symbol::RightParen)?;
+
+    let while_block = parse_block_statement()?;
+
+    Ok(Stmt::While(
+        Box::new(while_condition),
+        Box::new(while_block),
+    ))
 }
 
 fn parse_block_statement() -> Result<Stmt, ParseError> {

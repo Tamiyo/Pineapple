@@ -76,6 +76,10 @@ fn check_stmt(stmt: &Stmt, expected_type: Option<Type>) -> Result<(), TypeError>
             }
             Ok(())
         }
+        Stmt::While(cond, body) => {
+            check_expr(cond, None)?;
+            check_stmt(body, expected_type)
+        }
         Stmt::Expression(expr) => match check_expr(expr, None) {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
