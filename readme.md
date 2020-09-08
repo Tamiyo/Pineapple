@@ -49,7 +49,7 @@ cargo run {FILE_NAME} {ARGS}
 ```
 
 ### Samples
-##### Recursive Fibonacci
+#### Recursive Fibonacci
 ```
 #fibo(n: int): int {
     if (n <= 1) {
@@ -67,7 +67,7 @@ cargo run {FILE_NAME} {ARGS}
 >> 34.0
 ```
 
-##### Function with Casting
+#### Function with Casting
 ```
 #add(a: int8, b: uint8): float64 {
     return ((a as uint8) + b) as float64;
