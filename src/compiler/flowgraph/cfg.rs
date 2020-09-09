@@ -1,7 +1,7 @@
-use crate::compiler::dominator::DominatorContext;
 use crate::compiler::ir::Oper;
 use crate::compiler::ir::{Expr, Stmt};
 use crate::util::graph::{DirectedGraph, Graph};
+use crate::{bytecode::Label, compiler::dominator::DominatorContext};
 
 use std::cell::RefCell;
 use std::cmp::max;
@@ -33,7 +33,7 @@ impl BasicBlock {
         match &self.label {
             // NamedLabel could cause problems
             Some(reference) => match &*reference.borrow() {
-                Stmt::Label(label) | Stmt::NamedLabel(label) => Some(*label),
+                Stmt::Label(label) => Some(*label),
                 _ => None,
             },
             _ => None,
@@ -203,7 +203,7 @@ impl CFG {
             let block_to_remove = self
                 .blocks
                 .iter()
-                .position(|b| match b.jump() {
+                .position(|b| match b.label() {
                     Some(l) => {
                         if l == label {
                             true
@@ -233,37 +233,41 @@ impl CFG {
     }
 
     fn remove_block(&mut self, block_to_remove: usize) -> Vec<Statement> {
-        if block_to_remove == 0 || self.graph.pred[block_to_remove].len() > 0 {
+        if block_to_remove == 0 {
             return vec![];
         }
 
         // patch phi functions
-        // for block in &mut self.blocks {
-        //     for s in 0..block.statements.len() {
-        //         let statement = block.statements[s].clone();
-        //         if let Stmt::Tac(lval, Expr::Phi(args)) = &mut *statement.borrow_mut() {
-        //             for i in 0..args.len() {
-        //                 if args[i].1 == block_to_remove {
-        //                     args.remove(i);
+        for block in &mut self.blocks {
+            for s in 0..block.statements.len() {
+                let statement = block.statements[s].clone();
+                if let Stmt::Tac(lval, rval) = &mut *statement.borrow_mut() {
+                    if let Expr::Phi(args) = rval {
+                        for i in 0..args.len() {
+                            if args[i].1 == block_to_remove {
+                                args.remove(i);
 
-        //                     // Check to see if we can simplify the phi function
-        //                     if args.len() == 0 {
-        //                         block.statements.remove(s);
-        //                     } else if args.len() == 1 {
-        //                         statement.replace(Stmt::Tac(*lval, Expr::Oper(args[0].0)));
-        //                     }
-        //                     break;
-        //                 }
-        //             }
-        //         };
-        //     }
-        // }
+                                // Check to see if we can simplify the phi function
+                                if args.len() == 0 {
+                                    block.statements.remove(s);
+                                } else if args.len() == 1 {
+                                    *rval = Expr::Oper(args[0].0);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                };
+            }
+        }
 
         // actual removal
         let mut modified_statements = vec![];
 
         self.blocks[block_to_remove].label = None;
         self.blocks[block_to_remove].goto = None;
+        self.blocks[block_to_remove].statements.clear();
+
         modified_statements.append(
             &mut self.blocks[block_to_remove]
                 .statements
@@ -277,8 +281,6 @@ impl CFG {
 
         // Recursively delete any blocks that no long have and preds
         for child in children {
-            println!("child: {:?}", child);
-            println!("pred[child]: {:?}", self.graph.pred[child]);
             if self.graph.pred[child].is_empty() {
                 modified_statements.append(&mut self.remove_block(child));
             }
@@ -330,7 +332,9 @@ impl From<&Vec<Stmt>> for CFG {
                 }
                 Stmt::Tac(lval, rval) => {
                     let nindex = blocks.len();
-                    def.entry(lval.clone()).or_insert_with(HashSet::new).insert(nindex);
+                    def.entry(lval.clone())
+                        .or_insert_with(HashSet::new)
+                        .insert(nindex);
 
                     for oper in rval.oper_used() {
                         uses.entry(oper).or_insert_with(HashSet::new).insert(nindex);

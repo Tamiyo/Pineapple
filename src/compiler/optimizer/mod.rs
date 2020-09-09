@@ -107,7 +107,7 @@ pub fn constant_optimization(cfg: &mut CFG) {
             };
 
             if let Some(l) = label {
-                s.replace(Stmt::Jump(l));
+                s.replace(Stmt::Jump(l + 1));
             };
         }
     }

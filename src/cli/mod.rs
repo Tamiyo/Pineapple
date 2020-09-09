@@ -156,8 +156,8 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
                 println!("{:?}", cfg);
             }
         }
+        
         destruct_ssa(&mut cfg);
-
         register_allocation(&mut cfg);
 
         cfgs.push(cfg);
@@ -167,21 +167,24 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     if args.profile {
         println!(
             "{:<24}{}μs",
-            "CFGs Creation + Opt",
+            "CFGs & Optimization",
             format!("{:?}", duration.as_micros())
-        );
-
-        println!(
-            "{:<24}{}μs\n",
-            "Optimization",
-            format!("{:?}", opt_duration)
         );
     }
 
+    let start = Instant::now();
     let module = {
         let mut compiler = Compiler::new();
         compiler.compile_ir_to_bytecode(cfgs)
     };
+    let duration = start.elapsed();
+    if args.profile {
+        println!(
+            "{:<24}{}μs\n",
+            "Bytecode Compilation",
+            format!("{:?}", duration.as_micros())
+        );
+    }
 
     if args.debug {
         for chunk in module.chunks.iter() {

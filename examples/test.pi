@@ -1,16 +1,11 @@
-#add(a: int8, b: uint8): float64 {
-    return (((a as uint8) + b) as float64);
+#fibo(n: int): int {
+    if (n <= 1) {
+        return n;
+    } else {
+        return fibo(n - 1) + fibo(n - 2);
+    }
 }
 
 #main() {
-    a: int8 = 4;
-    b: uint8 = 7;
-    c: float64 = 5.0;
-    print(add(a, b), c);
-
-    i: int8 = 0;
-    while (i < 9) {
-        print(i);
-        i = i + 1;
-    }
+    print(fibo(9) as float64);
 }

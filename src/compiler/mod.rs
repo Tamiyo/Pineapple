@@ -244,7 +244,7 @@ impl Compiler {
                 let rval = self.operand_to_ir(oper);
                 self.add_instruction(Instruction::MOV(lval, rval));
             }
-            _ => unimplemented!(),
+            _ => unimplemented!("{:?}", expr),
         }
     }
 }
