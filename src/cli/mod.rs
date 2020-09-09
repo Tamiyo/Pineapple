@@ -1,3 +1,4 @@
+use crate::bytecode::module::Module;
 use crate::compiler::dominator::compute_dominator_context;
 use crate::compiler::flowgraph::cfg::CFG;
 use crate::compiler::ir::ssa::construct_ssa;
@@ -32,9 +33,6 @@ pub struct Cli {
     #[structopt(short, long)]
     pub debug: bool,
 
-    #[structopt(short, long)]
-    pub profile: bool,
-
     #[structopt(short = "o", long = "optimize")]
     pub optimize: bool,
 
@@ -58,6 +56,15 @@ pub fn parse_cli() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+macro_rules! benchmark {
+    ($name: expr, $code:expr) => {
+        let start = Instant::now();
+        $code
+        let duration = start.elapsed();
+        println!("{:<24}{:}μs", $name, format!("{:?}", duration.as_micros()));
+    };
+}
+
 /**
  *  Begins to actually compile a user's source code, running through all
  *  of the intermediate passes and stopping if an error occured during
@@ -77,114 +84,74 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
         }
     };
 
+    let mut ast = vec![];
+    benchmark!("Build AST", {
+        ast = match parse_program(tokens) {
+            Ok(a) => a,
+            Err(e) => {
+                return Err(format!("{}", e));
+            }
+        };
+    });
+
     let start = Instant::now();
-    let ast = match parse_program(tokens) {
-        Ok(a) => a,
-        Err(e) => {
-            return Err(format!("{}", e));
+    benchmark!("Semantic Analysis", {
+        match type_check_ast(&ast) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(format!("{}", e));
+            }
         }
-    };
-    let duration = start.elapsed();
 
-    if args.profile {
-        println!(
-            "{:<24}{:}μs",
-            "Build AST",
-            format!("{:?}", duration.as_micros())
-        );
-    }
-
-    let start = Instant::now();
-    match type_check_ast(&ast) {
-        Ok(_) => (),
-        Err(e) => {
-            return Err(format!("{}", e));
+        match binding_check_ast(&ast) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(format!("{}", e));
+            }
         }
-    }
+    });
 
-    match binding_check_ast(&ast) {
-        Ok(_) => (),
-        Err(e) => {
-            return Err(format!("{}", e));
-        }
-    }
-    let duration = start.elapsed();
+    let mut linear_code_blocks = vec![];
+    benchmark!("AST to LinearCode", {
+        let mut lcs = LinearCodeTransformer::new();
+        linear_code_blocks = lcs.translate(ast);
+    });
 
-    if args.profile {
-        println!(
-            "{:<24}{}μs",
-            "Semantic Analysis",
-            format!("{:?}", duration.as_micros())
-        );
-    }
-
-    let start = Instant::now();
-    let mut lcs = LinearCodeTransformer::new();
-    let linear_code_blocks = lcs.translate(ast);
-    let duration = start.elapsed();
-
-    if args.profile {
-        println!(
-            "{:<24}{}μs",
-            "AST to LinearCode",
-            format!("{:?}", duration.as_micros())
-        );
-    }
-
-    // cfg performance
-    let mut opt_duration: u128 = 0;
-
-    let start = Instant::now();
     let mut cfgs: Vec<CFG> = vec![];
-    for linear_code in linear_code_blocks {
-        let mut cfg = CFG::from(&linear_code);
+    benchmark!("CFGs & Optimization", {
+        for linear_code in linear_code_blocks {
+            let mut cfg = CFG::from(&linear_code);
 
-        compute_dominator_context(&mut cfg);
-        construct_ssa(&mut cfg);
+            compute_dominator_context(&mut cfg);
+            construct_ssa(&mut cfg);
 
-        if args.optimize {
-            let opt_start = Instant::now();
-            constant_optimization(&mut cfg);
-            opt_duration += opt_start.elapsed().as_micros();
-            if args.debug {
-                println!("::CFG OPTIMIZED::");
-                println!("{:?}", cfg);
+            if args.optimize {
+                constant_optimization(&mut cfg);
+                if args.debug {
+                    println!("::CFG OPTIMIZED::");
+                    println!("{:?}", cfg);
+                }
+            } else {
+                if args.debug {
+                    println!("::CFG::");
+                    println!("{:?}", cfg);
+                }
             }
-        } else {
-            if args.debug {
-                println!("::CFG::");
-                println!("{:?}", cfg);
-            }
+
+            destruct_ssa(&mut cfg);
+            register_allocation(&mut cfg);
+
+            cfgs.push(cfg);
         }
-        
-        destruct_ssa(&mut cfg);
-        register_allocation(&mut cfg);
+    });
 
-        cfgs.push(cfg);
-    }
-    let duration = start.elapsed();
-
-    if args.profile {
-        println!(
-            "{:<24}{}μs",
-            "CFGs & Optimization",
-            format!("{:?}", duration.as_micros())
-        );
-    }
-
-    let start = Instant::now();
-    let module = {
-        let mut compiler = Compiler::new();
-        compiler.compile_ir_to_bytecode(cfgs)
-    };
-    let duration = start.elapsed();
-    if args.profile {
-        println!(
-            "{:<24}{}μs\n",
-            "Bytecode Compilation",
-            format!("{:?}", duration.as_micros())
-        );
-    }
+    let mut module = Module::new();
+    benchmark!("Bytecode Compilation", {
+        module = {
+            let mut compiler = Compiler::new();
+            compiler.compile_ir_to_bytecode(cfgs)
+        };
+    });
 
     if args.debug {
         for chunk in module.chunks.iter() {
@@ -196,20 +163,10 @@ fn build(buf: &str, args: Cli) -> Result<(), String> {
     }
 
     let mut vm = VM::new();
-    let start = Instant::now();
     match vm.dispatch(&module) {
         Ok(()) => (),
         Err(e) => panic!(e),
     };
-    let duration = start.elapsed();
-
-    if args.profile {
-        println!(
-            "\n{:<24}{}μs",
-            "VM Execution",
-            format!("{:?}", duration.as_micros())
-        );
-    }
 
     Ok(())
 }
