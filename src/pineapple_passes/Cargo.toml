@@ -1,0 +1,13 @@
+[package]
+authors = ["Matthew McMillian <matthewgmcmillian@gmail.com>"]
+edition = "2018"
+name = "pineapple_passes"
+version = "0.1.0"
+
+[dependencies]
+pineapple_ast = {path = "../pineapple_ast"}
+pineapple_ir = {path = "../pineapple_ir"}
+pineapple_lexer = {path = "../pineapple_lexer"}
+pineapple_semantics = {path = "../pineapple_semantics"}
+structopt = "0.3"
+

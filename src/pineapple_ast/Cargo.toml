@@ -1,0 +1,13 @@
+[package]
+name = "pineapple_ast"
+version = "0.1.0"
+authors = ["Matthew McMillian <matthewgmcmillian@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pineapple_ir = { path = "../pineapple_ir" }
+pineapple_lexer = { path = "../pineapple_lexer" }
+pineapple_error = { path = "../pineapple_error" }
+pineapple_session = { path = "../pineapple_session" }
