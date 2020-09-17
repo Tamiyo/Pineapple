@@ -1,20 +1,21 @@
 use pineapple_ast::ast::{Expr, Stmt};
 use pineapple_error::TypeError;
+use pineapple_ir::value::Value;
 use pineapple_ir::value::ValueTy;
 
 type Ident = usize;
 type Type = ValueTy;
 type Args = Vec<(Ident, Type)>;
 
-pub fn typecheck(ast: &Vec<Stmt>) -> Result<(), TypeError> {
+pub fn typecheck(ast: &mut Vec<Stmt>) -> Result<(), TypeError> {
     pineapple_session::insert_symbol_table_context();
-    for stmt in ast {
+    for stmt in ast.iter() {
         if let Stmt::Function(name, _, return_ty, _) = stmt {
             pineapple_session::insert_function_into_symbol_table(name, return_ty);
         }
     }
 
-    for stmt in ast {
+    for stmt in ast.iter_mut() {
         check_stmt(stmt, None)?;
     }
     pineapple_session::pop_symbol_table_context();
@@ -25,7 +26,7 @@ fn check_function(
     name: &Ident,
     args: &Args,
     return_ty: &Type,
-    body: &Vec<Stmt>,
+    body: &mut Vec<Stmt>,
 ) -> Result<(), TypeError> {
     pineapple_session::insert_function_into_symbol_table(name, return_ty);
     pineapple_session::insert_symbol_table_context();
@@ -34,7 +35,7 @@ fn check_function(
         pineapple_session::insert_variable_into_symbol_table(ident, value_ty);
     }
 
-    for stmt in body {
+    for stmt in body.iter_mut() {
         check_stmt(stmt, Some(*return_ty))?;
     }
 
@@ -42,7 +43,7 @@ fn check_function(
     Ok(())
 }
 
-fn check_stmt(stmt: &Stmt, func_return_ty: Option<Type>) -> Result<(), TypeError> {
+fn check_stmt(stmt: &mut Stmt, func_return_ty: Option<Type>) -> Result<(), TypeError> {
     match stmt {
         Stmt::Function(name, args, return_ty, body) => check_function(name, args, return_ty, body),
         Stmt::Block(stmts) => {
@@ -85,14 +86,31 @@ fn check_stmt(stmt: &Stmt, func_return_ty: Option<Type>) -> Result<(), TypeError
     }
 }
 
-fn check_expr(expr: &Expr, expected_ty: Option<Type>) -> Result<Option<Type>, TypeError> {
+fn check_expr(expr: &mut Expr, expected_ty: Option<Type>) -> Result<Option<Type>, TypeError> {
+    // Resolves an rval type, making sure that the expected type equals it
+    fn resolve_rval_ty(ty1: Option<Type>, ty2: Option<Type>) -> Result<(), TypeError> {
+        match (ty1, ty2) {
+            (Some(ty1), Some(ty2)) => {
+                if ty1 != ty2 {
+                    return Err(TypeError::InvalidExprType(ty1, ty2));
+                }
+            }
+            _ => return Err(TypeError::ExpectedNestedType),
+        }
+        Ok(())
+    }
+
     match expr {
         Expr::Assign(lval, var_ty, rval) => {
             match var_ty {
                 //  If the assign statement has a ty, that means it is "fresh", this identifier hasn't been assigned to before.
                 //      In such a case we evaluate the expression with the type given and add it to the symbol table
                 Some(ty) => {
-                    check_expr(rval, *var_ty)?;
+                    let rval_ty = check_expr(rval, Some(*ty))?;
+                    match resolve_rval_ty(Some(*ty), rval_ty) {
+                        Ok(()) => (),
+                        Err(e) => return Err(e),
+                    }
                     pineapple_session::insert_variable_into_symbol_table(lval, ty);
                 }
                 //  If the assign statement does not have a ty, that means it is "old", this identifier has been assigned to before.
@@ -102,18 +120,22 @@ fn check_expr(expr: &Expr, expected_ty: Option<Type>) -> Result<Option<Type>, Ty
                         Some(ty) => ty,
                         None => panic!("undefined variable"),
                     };
-                    check_expr(rval, Some(ty))?;
+                    let rval_ty = check_expr(rval, Some(ty))?;
+                    match resolve_rval_ty(Some(ty), rval_ty) {
+                        Ok(()) => (),
+                        Err(e) => return Err(e),
+                    }
                 }
             }
             Ok(None)
         }
         Expr::Binary(left, op, right) => {
-            check_expr(left, expected_ty)?;
-            check_expr(right, expected_ty)
+            let ty = check_expr(left, expected_ty)?;
+            check_expr(right, ty)
         }
         Expr::Logical(left, op, right) => {
-            check_expr(left, expected_ty)?;
-            check_expr(right, expected_ty)
+            let ty = check_expr(left, expected_ty)?;
+            check_expr(right, ty)
         }
         Expr::Grouping(group) => check_expr(group, expected_ty),
         Expr::Variable(ident) => match (pineapple_session::get_variable_ty(ident), expected_ty) {
@@ -131,14 +153,45 @@ fn check_expr(expr: &Expr, expected_ty: Option<Type>) -> Result<Option<Type>, Ty
             if let Some(ty) = expected_ty {
                 // If the value is not of the expected type we then we error
                 let value_ty = value.get_ty();
+
                 if value_ty != ty {
-                    return Err(TypeError::InvalidValueType(value.clone(), value_ty, ty));
+                    match value.try_implicit_cast(ty) {
+                        Ok(()) => Ok(expected_ty),
+                        Err(()) => Err(TypeError::InvalidValueType(value.clone(), ty, value_ty)),
+                    }
+                } else {
+                    Ok(expected_ty)
                 }
-                Ok(expected_ty)
             } else {
                 Ok(expected_ty)
             }
         }
+        Expr::CastAs(expr, ty) => check_cast(expr, ty),
         _ => unimplemented!(),
+    }
+}
+
+fn check_cast(expr: &mut Expr, ty: &mut ValueTy) -> Result<Option<Type>, TypeError> {
+    if let Expr::Value(value) = expr {
+        match value.try_cast(*ty) {
+            Ok(()) => Ok(Some(*ty)),
+            Err(()) => Err(TypeError::InvalidValueType(
+                value.clone(),
+                *ty,
+                value.get_ty(),
+            )),
+        }
+    } else if let Expr::Variable(ident) = expr {
+        let var_ty = match pineapple_session::get_variable_ty(ident) {
+            Some(ty) => ty,
+            None => panic!("undefined variable"),
+        };
+        if !Value::check_can_cast(var_ty, *ty) {
+            return Err(TypeError::InvalidVariableType(*ident, var_ty, *ty));
+        } else {
+            Ok(Some(*ty))
+        }
+    } else {
+        check_expr(expr, Some(*ty))
     }
 }

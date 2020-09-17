@@ -118,6 +118,7 @@ pub enum TypeError {
     InvalidValueType(Value, Type, Type),
     InvalidVariableType(Ident, Type, Type),
     InvalidReturnType(Type, Type),
+    InvalidExprType(Type, Type),
     ExpectedNestedType,
     UndefinedVariable(Ident),
     UndefinedFunction(Ident),
@@ -134,7 +135,10 @@ impl fmt::Display for TypeError {
                 write!(f, "Invalid type for {:?}. Expected {:?} but got {:?}", pineapple_session::get_string(*value), actual_type, expected_type)
             }
             TypeError::InvalidReturnType(actual_type, expected_type) => {
-                write!(f, "Invalid return type at. Expected {:?} but got {:?}", actual_type, expected_type)
+                write!(f, "Invalid return type. Expected {:?} but got {:?}", actual_type, expected_type)
+            }
+            TypeError::InvalidExprType(expected, actual) => {
+                write!(f, "Invalid expr type. Expected {:?} but got {:?}", expected, actual)
             }
             TypeError::ExpectedNestedType => {
                 write!(f, "Expected expr to have a type. This is an internal error and you should flame the compiler engineer.")

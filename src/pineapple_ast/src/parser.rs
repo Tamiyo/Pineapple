@@ -256,7 +256,7 @@ impl Parser {
             | TokenKind::NotEqual
             | TokenKind::EqualEqual => self.parse_logical(left),
             TokenKind::Equal | TokenKind::Colon => self.parse_assign(left),
-            // TokenKind::As => parse_cast(left, expected_type),
+            TokenKind::As => self.parse_cast(left),
             // TokenKind::LeftParen => parse_call(left, expected_type),
             _ => Err(ParseError::UnexpectedInfixOperator(self.peek()?.clone())),
         }
@@ -291,6 +291,12 @@ impl Parser {
             expr = self.infix(&mut expr)?;
         }
         Ok(expr)
+    }
+
+    fn parse_cast(&mut self, left: &mut Expr) -> Result<Expr, ParseError> {
+        self.consume(TokenKind::As)?;
+        let ctype = self.consume_type()?;
+        Ok(Expr::CastAs(Box::new(left.clone()), ctype))
     }
 
     fn parse_assign(&mut self, left: &mut Expr) -> Result<Expr, ParseError> {

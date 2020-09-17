@@ -32,8 +32,8 @@ pub struct PassArgs {
 
 pub fn compile(buf: &str, args: PassArgs) {
     let tokens = lexical_pass(buf, &args);
-    let ast = ast_pass(tokens, &args);
-    typcheck_pass(&ast, &args);
+    let mut ast = ast_pass(tokens, &args);
+    typcheck_pass(&mut ast, &args);
 }
 
 fn lexical_pass(buf: &str, args: &PassArgs) -> Vec<Token> {
@@ -78,8 +78,8 @@ fn ast_pass(tokens: Vec<Token>, args: &PassArgs) -> Vec<Stmt> {
     }
 }
 
-fn typcheck_pass(ast: &Vec<Stmt>, args: &PassArgs) {
-    let code = || match pineapple_semantics::typecheck(ast) {
+fn typcheck_pass(ast: &mut Vec<Stmt>, args: &PassArgs) {
+    let mut code = || match pineapple_semantics::typecheck(ast) {
         Ok(ast) => {
             if args.debug {
                 println!("::Type Checking::\n{:#?}\n", ast);
