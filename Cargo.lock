@@ -84,6 +84,7 @@ dependencies = [
  "pineapple_semantics",
  "pineapple_session",
  "pineapple_tooling",
+ "pineapple_translation",
 ]
 
 [[package]]
@@ -129,6 +130,7 @@ dependencies = [
  "pineapple_ir",
  "pineapple_lexer",
  "pineapple_semantics",
+ "pineapple_translation",
  "structopt",
 ]
 
@@ -155,6 +157,15 @@ version = "0.1.0"
 dependencies = [
  "pineapple_passes",
  "structopt",
+]
+
+[[package]]
+name = "pineapple_translation"
+version = "0.1.0"
+dependencies = [
+ "pineapple_ast",
+ "pineapple_ir",
+ "pineapple_session",
 ]
 
 [[package]]

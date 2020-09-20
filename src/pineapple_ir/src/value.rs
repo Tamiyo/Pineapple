@@ -18,6 +18,7 @@ macro_rules! types {
         }
     ) => {
         $( #[$meta] )*
+        #[derive(Copy)]
         #[repr(transparent)]
         $struct_vis struct $struct {
             pub value: ValueBox<$enum>,
@@ -34,6 +35,7 @@ macro_rules! types {
         }
 
         $( #[$meta] )*
+        #[derive(Copy)]
         $enum_vis enum $enum {
             $( $variant($ty) ),+
         }
@@ -198,7 +200,7 @@ cast_rules! {
     STR: [],
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct ValueBox<T> {
     tagged_ptr: u64,
     _marker: PhantomData<T>,

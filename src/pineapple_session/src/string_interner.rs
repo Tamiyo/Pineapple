@@ -36,10 +36,6 @@ impl Interner {
     }
 }
 
-fn contains_string(s: String) -> bool {
-    false   
-}
-
 pub fn intern_string(s: String) -> InternIndex {
     INTERNER.with(|interner| interner.borrow_mut().intern(s))
 }

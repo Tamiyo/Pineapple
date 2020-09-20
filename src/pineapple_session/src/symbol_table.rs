@@ -17,13 +17,6 @@ impl SymbolTable {
         self.stack.push(SymbolTableContext::default());
     }
 
-    pub fn get_current_context(&self) -> &SymbolTableContext {
-        match self.stack.last() {
-            Some(context) => context,
-            None => panic!("unchecked: expected symbol table context"),
-        }
-    }
-
     pub fn get_current_context_mut(&mut self) -> &mut SymbolTableContext {
         match self.stack.last_mut() {
             Some(context) => context,
@@ -87,12 +80,6 @@ struct SymbolTableContext {
 }
 
 impl SymbolTableContext {
-    pub fn new() -> Self {
-        SymbolTableContext {
-            table: HashMap::new(),
-        }
-    }
-
     pub fn insert_variable(&mut self, ident: Ident, var_type: ValueTy) {
         self.table
             .insert(ident, SymbolData::Var(VariableSymbolData { var_type }));
@@ -106,20 +93,6 @@ impl SymbolTableContext {
                 arg_types,
             }),
         );
-    }
-
-    pub fn contains_variable(&self, ident: &Ident) -> bool {
-        match self.table.get(ident) {
-            Some(SymbolData::Var(_)) => true,
-            _ => false,
-        }
-    }
-
-    pub fn contains_function(&self, ident: &Ident) -> bool {
-        match self.table.get(ident) {
-            Some(SymbolData::Fun(_)) => true,
-            _ => false,
-        }
     }
 
     pub fn get_variable_ty(&self, ident: &Ident) -> Option<ValueTy> {

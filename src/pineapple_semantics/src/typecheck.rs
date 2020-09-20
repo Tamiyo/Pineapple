@@ -2,7 +2,6 @@ use pineapple_ast::ast::{Expr, Stmt};
 use pineapple_error::TypeError;
 use pineapple_ir::value::Value;
 use pineapple_ir::value::ValueTy;
-use pineapple_session::get_string;
 
 type Ident = usize;
 type Type = ValueTy;
@@ -80,7 +79,6 @@ fn check_stmt(stmt: &mut Stmt, func_return_ty: Option<Type>) -> Result<(), TypeE
             }
             Ok(())
         }
-        _ => unimplemented!("{:?}", stmt),
     }
 }
 
@@ -172,7 +170,6 @@ fn check_expr(expr: &mut Expr, expected_ty: Option<Type>) -> Result<Option<Type>
         }
         Expr::CastAs(expr, ty) => check_cast(expr, ty),
         Expr::Call(callee, args) => check_call(callee, args, expected_ty),
-        _ => unimplemented!(),
     }
 }
 

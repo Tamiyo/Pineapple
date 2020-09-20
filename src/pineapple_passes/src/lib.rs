@@ -58,12 +58,17 @@ pub fn compile(buf: &str, args: PassArgs) {
         println!("::Type Checking::\n{:#?}\n", ast);
     }
 
+    let mut code_blocks = linearcode_pass(ast, &args);
+    if args.debug {
+        println!("::AST to LinearCode::\n{:#?}\n", code_blocks);
+    }
+
     if args.perf {
         PERF_METRICS.with(|m| println!("{:#?}", m.borrow()));
     }
 }
 
-fn lexical_pass(buf: &str, args: &PassArgs) -> Vec<Token> {
+fn lexical_pass(buf: &str, args: &PassArgs) -> Vec<pineapple_ir::hir::token::Token> {
     let code = || match pineapple_lexer::lex(buf) {
         Ok(tokens) => tokens,
         Err(e) => panic!(format!("{}", e)),
@@ -79,7 +84,7 @@ fn lexical_pass(buf: &str, args: &PassArgs) -> Vec<Token> {
     }
 }
 
-fn ast_pass(tokens: Vec<Token>, args: &PassArgs) -> Vec<Stmt> {
+fn ast_pass(tokens: Vec<Token>, args: &PassArgs) -> Vec<pineapple_ast::ast::Stmt> {
     let code = || match pineapple_ast::parse(tokens) {
         Ok(ast) => ast,
         Err(e) => panic!(format!("{}", e)),
@@ -104,6 +109,23 @@ fn typcheck_pass(ast: &mut Vec<Stmt>, args: &PassArgs) {
     if args.perf {
         benchmark! {
             "Type Checking",
+            code()
+        }
+    } else {
+        code()
+    }
+}
+
+fn linearcode_pass(ast: Vec<Stmt>, args: &PassArgs) -> Vec<Vec<pineapple_ir::mir::Stmt>> {
+    // pineapple_translation::convert_ast_to_linearcode(ast);
+
+    let code = || {
+        pineapple_translation::convert_ast_to_linearcode(ast)
+    };
+
+    if args.perf {
+        benchmark! {
+            "AST to LinearCode",
             code()
         }
     } else {

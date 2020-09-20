@@ -14,3 +14,4 @@ pineapple_passes = {path = "src/pineapple_passes"}
 pineapple_semantics = {path = "src/pineapple_semantics"}
 pineapple_session = {path = "src/pineapple_session"}
 pineapple_tooling = {path = "src/pineapple_tooling"}
+pineapple_translation = {path = "src/pineapple_translation"}
