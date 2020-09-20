@@ -1,4 +1,4 @@
-use pineapple_ir::token::{Token, TokenKind};
+use crate::hir::token::{Token, TokenKind};
 use std::fmt;
 
 #[derive(Copy, Clone, PartialEq, Eq)]

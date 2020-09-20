@@ -2,6 +2,7 @@ use pineapple_ast::ast::{Expr, Stmt};
 use pineapple_error::TypeError;
 use pineapple_ir::value::Value;
 use pineapple_ir::value::ValueTy;
+use pineapple_session::get_string;
 
 type Ident = usize;
 type Type = ValueTy;
@@ -10,8 +11,9 @@ type Args = Vec<(Ident, Type)>;
 pub fn typecheck(ast: &mut Vec<Stmt>) -> Result<(), TypeError> {
     pineapple_session::insert_symbol_table_context();
     for stmt in ast.iter() {
-        if let Stmt::Function(name, _, return_ty, _) = stmt {
-            pineapple_session::insert_function_into_symbol_table(name, return_ty);
+        if let Stmt::Function(name, args, return_ty, _) = stmt {
+            let arg_types = args.iter().map(|ty| ty.1).collect();
+            pineapple_session::insert_function_into_symbol_table(name, return_ty, arg_types);
         }
     }
 
@@ -26,18 +28,17 @@ fn check_function(
     name: &Ident,
     args: &Args,
     return_ty: &Type,
-    body: &mut Vec<Stmt>,
+    body: &mut Stmt,
 ) -> Result<(), TypeError> {
-    pineapple_session::insert_function_into_symbol_table(name, return_ty);
+    let arg_types = args.iter().map(|ty| ty.1).collect();
+    pineapple_session::insert_function_into_symbol_table(name, return_ty, arg_types);
     pineapple_session::insert_symbol_table_context();
 
     for (ident, value_ty) in args {
         pineapple_session::insert_variable_into_symbol_table(ident, value_ty);
     }
 
-    for stmt in body.iter_mut() {
-        check_stmt(stmt, Some(*return_ty))?;
-    }
+    check_stmt(body, Some(*return_ty))?;
 
     pineapple_session::pop_symbol_table_context();
     Ok(())
@@ -48,22 +49,22 @@ fn check_stmt(stmt: &mut Stmt, func_return_ty: Option<Type>) -> Result<(), TypeE
         Stmt::Function(name, args, return_ty, body) => check_function(name, args, return_ty, body),
         Stmt::Block(stmts) => {
             for stmt in stmts {
-                check_stmt(stmt, None)?;
+                check_stmt(stmt, func_return_ty)?;
             }
             Ok(())
         }
         Stmt::If(cond, body, other) => {
             check_expr(cond, None)?;
-            check_stmt(body, None)?;
+            check_stmt(body, func_return_ty)?;
 
             if let Some(other) = other {
-                check_stmt(other, None)?;
+                check_stmt(other, func_return_ty)?;
             }
             Ok(())
         }
         Stmt::While(cond, body) => {
             check_expr(cond, None)?;
-            check_stmt(body, None)
+            check_stmt(body, func_return_ty)
         }
         Stmt::Expression(expr) => match check_expr(expr, None) {
             Ok(_) => Ok(()),
@@ -74,10 +75,7 @@ fn check_stmt(stmt: &mut Stmt, func_return_ty: Option<Type>) -> Result<(), TypeE
             if let Some(expr) = expr {
                 let rtype = check_expr(expr, func_return_ty)?;
                 if rtype != func_return_ty {
-                    return Err(TypeError::InvalidReturnType(
-                        rtype.unwrap(),
-                        func_return_ty.unwrap(),
-                    ));
+                    panic!("invalid return type!")
                 }
             }
             Ok(())
@@ -129,26 +127,32 @@ fn check_expr(expr: &mut Expr, expected_ty: Option<Type>) -> Result<Option<Type>
             }
             Ok(None)
         }
-        Expr::Binary(left, op, right) => {
+        Expr::Binary(left, _, right) => {
             let ty = check_expr(left, expected_ty)?;
             check_expr(right, ty)
         }
-        Expr::Logical(left, op, right) => {
+        Expr::Logical(left, _, right) => {
             let ty = check_expr(left, expected_ty)?;
             check_expr(right, ty)
         }
         Expr::Grouping(group) => check_expr(group, expected_ty),
-        Expr::Variable(ident) => match (pineapple_session::get_variable_ty(ident), expected_ty) {
-            (Some(ty), Some(expected_ty)) => {
-                // If we have a variable in our symbol table AND it matches our expected type, we pass
-                if ty == expected_ty {
-                    Ok(Some(expected_ty))
-                } else {
-                    Err(TypeError::InvalidVariableType(*ident, ty, expected_ty))
+        Expr::Variable(ident) => {
+            match (pineapple_session::get_variable_ty(ident), expected_ty) {
+                (Some(ty), Some(expected_ty)) => {
+                    // If we have a variable in our symbol table AND it matches our expected type, we pass
+                    if ty == expected_ty {
+                        Ok(Some(expected_ty))
+                    } else {
+                        Err(TypeError::InvalidVariableType(*ident, expected_ty, ty))
+                    }
                 }
+                (Some(_), None) => {
+                    // If we have a variable w/ no type annotation, we pass as it exists
+                    Ok(None)
+                }
+                _ => Err(TypeError::UndefinedVariable(*ident)),
             }
-            _ => Err(TypeError::UndefinedVariable(*ident)),
-        },
+        }
         Expr::Value(value) => {
             if let Some(ty) = expected_ty {
                 // If the value is not of the expected type we then we error
@@ -167,7 +171,40 @@ fn check_expr(expr: &mut Expr, expected_ty: Option<Type>) -> Result<Option<Type>
             }
         }
         Expr::CastAs(expr, ty) => check_cast(expr, ty),
+        Expr::Call(callee, args) => check_call(callee, args, expected_ty),
         _ => unimplemented!(),
+    }
+}
+
+fn check_call(
+    callee: &Expr,
+    args: &mut Vec<Expr>,
+    expected_ty: Option<Type>,
+) -> Result<Option<Type>, TypeError> {
+    if let Expr::Variable(ident) = callee {
+        match (
+            pineapple_session::get_function_ty(ident),
+            pineapple_session::get_function_arg_tys(ident),
+        ) {
+            (Some(return_ty), Some(args_ty)) => {
+                if let Some(expected_ty) = expected_ty {
+                    if expected_ty != return_ty {
+                        panic!("return type did not equal expected type")
+                    }
+                }
+
+                for i in 0..args_ty.len() {
+                    check_expr(&mut args[i], Some(args_ty[i]))?;
+                }
+
+                Ok(Some(return_ty))
+            }
+            _ => {
+                panic!("expected function #1!");
+            }
+        }
+    } else {
+        panic!("expected function #2!")
     }
 }
 

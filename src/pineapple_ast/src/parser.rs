@@ -1,10 +1,11 @@
-use crate::ast::{Expr, Stmt};
-use crate::op::BinOp;
-use crate::op::RelOp;
-use pineapple_error::ParseError;
-use pineapple_ir::token::{Token, TokenKind};
+use pineapple_ir::op::BinOp;
+use pineapple_ir::op::RelOp;
 use pineapple_ir::value::Value;
-use pineapple_ir::value::ValueTy;
+use pineapple_ir::{hir::token::{Token, TokenKind}, value::ValueTy};
+use crate::ast::{Expr, Stmt};
+use pineapple_error::ParseError;
+
+type Ident = usize;
 
 #[derive(Debug, PartialEq, PartialOrd)]
 enum Precedence {
@@ -111,8 +112,75 @@ impl Parser {
 
     fn parse_declaration(&mut self) -> Result<Stmt, ParseError> {
         match self.peek()?.kind {
+            TokenKind::Fun => self.parse_function(),
             _ => self.parse_statement(),
         }
+    }
+
+    fn parse_function(&mut self) -> Result<Stmt, ParseError> {
+        self.consume(TokenKind::Fun)?;
+
+        // Get Function Name
+        let next_token = self.next()?;
+        let function_name = match next_token.kind {
+            TokenKind::Ident(ident) => Ok(ident),
+            _ => Err(ParseError::ExpectedIdentifier(next_token)),
+        }?;
+
+        // Get Parameters
+        self.consume(TokenKind::LeftParen)?;
+        let parameters = self.parse_identifier_list()?;
+        self.consume(TokenKind::RightParen)?;
+
+        // Get Return Type (if any)
+        let mut return_type: ValueTy = ValueTy::NONE;
+        match self.peek()?.kind {
+            TokenKind::Colon => {
+                self.consume(TokenKind::Colon)?;
+                return_type = self.consume_type()?;
+            }
+            _ => (),
+        }
+
+        // Compile Body
+        let body = Box::new(self.parse_block_statement()?);
+        Ok(Stmt::Function(function_name, parameters, return_type, body))
+    }
+
+    fn parse_identifier_list(&mut self) -> Result<Vec<(Ident, ValueTy)>, ParseError> {
+        let mut parameters = vec![];
+
+        // Consume the first parameter (if it exists)
+        let peek_token = self.peek()?;
+        if let TokenKind::Ident(ident) = peek_token.kind {
+            // Consume identifier
+            self.next()?;
+            let param = ident;
+
+            // Consume parameter type
+            self.consume(TokenKind::Colon)?;
+            let param_ty = self.consume_type()?;
+            parameters.push((param, param_ty));
+        }
+
+        // Consume multiple other parameters
+        while self.peek()?.kind == TokenKind::Comma {
+            self.consume(TokenKind::Comma)?;
+
+            // Consume Identifier
+            let next_token = self.next()?;
+            let param = match next_token.kind {
+                TokenKind::Ident(ident) => Ok(ident),
+                _ => Err(ParseError::ExpectedIdentifier(next_token)),
+            }?;
+
+            // Consume Type
+            self.consume(TokenKind::Colon)?;
+            let param_ty = self.consume_type()?;
+            parameters.push((param, param_ty));
+        }
+
+        Ok(parameters)
     }
 
     fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
@@ -226,8 +294,6 @@ impl Parser {
         while self.peek()?.kind == TokenKind::Comma {
             self.consume(TokenKind::Comma)?;
             expressions.push(self.parse_expression(Precedence::None)?);
-            // Should this be here?
-            // i += 1;
         }
 
         Ok(expressions)
@@ -257,7 +323,7 @@ impl Parser {
             | TokenKind::EqualEqual => self.parse_logical(left),
             TokenKind::Equal | TokenKind::Colon => self.parse_assign(left),
             TokenKind::As => self.parse_cast(left),
-            // TokenKind::LeftParen => parse_call(left, expected_type),
+            TokenKind::LeftParen => self.parse_call(left),
             _ => Err(ParseError::UnexpectedInfixOperator(self.peek()?.clone())),
         }
     }
@@ -266,7 +332,7 @@ impl Parser {
         match self.peek()?.kind {
             TokenKind::IntLit(_)
             | TokenKind::FloatLit(_)
-            | TokenKind::Identifier(_)
+            | TokenKind::Ident(_)
             | TokenKind::StrLit(_) => self.parse_primary(),
             TokenKind::True => {
                 self.next()?;
@@ -297,6 +363,14 @@ impl Parser {
         self.consume(TokenKind::As)?;
         let ctype = self.consume_type()?;
         Ok(Expr::CastAs(Box::new(left.clone()), ctype))
+    }
+
+    fn parse_call(&mut self, left: &mut Expr) -> Result<Expr, ParseError> {
+        self.consume(TokenKind::LeftParen)?;
+        let args: Vec<Expr> = self.parse_expression_list()?;
+        self.consume(TokenKind::RightParen)?;
+
+        Ok(Expr::Call(Box::new(left.clone()), args))
     }
 
     fn parse_assign(&mut self, left: &mut Expr) -> Result<Expr, ParseError> {
@@ -385,7 +459,7 @@ impl Parser {
         match token.kind {
             TokenKind::IntLit(value) => Ok(Expr::Value(value)),
             TokenKind::FloatLit(value) => Ok(Expr::Value(value)),
-            TokenKind::Identifier(sym) => Ok(Expr::Variable(sym)),
+            TokenKind::Ident(sym) => Ok(Expr::Variable(sym)),
             TokenKind::StrLit(sym) => Ok(Expr::Value(Value::from(sym))),
             _ => Err(ParseError::ExpectedLiteral(token)),
         }

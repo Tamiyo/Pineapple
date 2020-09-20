@@ -1,10 +1,7 @@
+use pineapple_ir::value::{Value, ValueTy};
 use std::fmt;
 
-use pineapple_ir::value::ValueTy;
-use pineapple_ir::{
-    token::{Token, TokenKind},
-    value::Value,
-};
+use pineapple_ir::hir::token::{Token, TokenKind};
 
 type Ident = usize;
 type Type = ValueTy;

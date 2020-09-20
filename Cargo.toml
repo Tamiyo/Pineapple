@@ -6,6 +6,7 @@ version = "0.1.0"
 
 [dependencies]
 pineapple_ast = {path = "src/pineapple_ast"}
+pineapple_data_structures = {path = "src/pineapple_data_structures"}
 pineapple_error = {path = "src/pineapple_error"}
 pineapple_ir = {path = "src/pineapple_ir"}
 pineapple_lexer = {path = "src/pineapple_lexer"}

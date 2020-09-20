@@ -1,4 +1,4 @@
-use pineapple_ir::token::Token;
+use pineapple_ir::hir::token::Token;
 
 mod lexer;
 

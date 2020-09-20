@@ -32,7 +32,7 @@ pub enum TokenKind {
     Less,
     LessEqual,
     // Literals.
-    Identifier(Identifier),
+    Ident(Identifier),
     StrLit(InternIndex),
     IntLit(Value),
     FloatLit(Value),
@@ -75,7 +75,7 @@ pub enum TokenKind {
 
     BoolTy,
 
-    StringTy
+    StringTy,
 }
 
 #[derive(Clone)]

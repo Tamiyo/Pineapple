@@ -1,10 +1,9 @@
 use crate::ast::Stmt;
 use crate::parser::Parser;
 use pineapple_error::ParseError;
-use pineapple_ir::token::Token;
+use pineapple_ir::hir::token::Token;
 
 pub mod ast;
-mod op;
 mod parser;
 
 pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, ParseError> {

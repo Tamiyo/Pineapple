@@ -25,8 +25,12 @@ pub fn insert_variable_into_symbol_table(ident: &Ident, value_ty: &ValueTy) {
     symbol_table::insert_variable(*ident, *value_ty);
 }
 
-pub fn insert_function_into_symbol_table(ident: &Ident, value_ty: &ValueTy) {
-    symbol_table::insert_function(*ident, *value_ty);
+pub fn insert_function_into_symbol_table(
+    ident: &Ident,
+    value_ty: &ValueTy,
+    arg_types: Vec<ValueTy>,
+) {
+    symbol_table::insert_function(*ident, *value_ty, arg_types);
 }
 
 pub fn get_variable_ty(ident: &Ident) -> Option<ValueTy> {
@@ -35,4 +39,8 @@ pub fn get_variable_ty(ident: &Ident) -> Option<ValueTy> {
 
 pub fn get_function_ty(ident: &Ident) -> Option<ValueTy> {
     symbol_table::get_function_ty(ident)
+}
+
+pub fn get_function_arg_tys(ident: &Ident) -> Option<Vec<ValueTy>> {
+    symbol_table::get_function_arg_tys(ident)
 }

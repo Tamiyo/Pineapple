@@ -1,4 +1,4 @@
-use crate::op::{BinOp, RelOp};
+use pineapple_ir::op::{BinOp, RelOp};
 use pineapple_ir::value::{Value, ValueTy};
 
 type Identifier = usize;
@@ -29,5 +29,5 @@ pub enum Stmt {
     Expression(Box<Expr>),
     Print(Vec<Expr>),
     Return(Option<Box<Expr>>),
-    Function(Identifier, Args, ReturnType, Vec<Stmt>),
+    Function(Identifier, Args, ReturnType, Box<Stmt>),
 }

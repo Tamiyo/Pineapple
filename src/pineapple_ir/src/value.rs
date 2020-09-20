@@ -41,7 +41,8 @@ macro_rules! types {
         #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
         #[repr(u16)]
         $enum_vis enum ValueTy {
-            $($variant = $tag,) +
+            $($variant = $tag,)+
+            NONE = u16::MAX,
         }
 
         impl From<u16> for ValueTy {

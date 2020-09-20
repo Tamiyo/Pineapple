@@ -1,5 +1,6 @@
 use pineapple_ast::ast::Stmt;
-use pineapple_ir::token::Token;
+use pineapple_ir::hir::token::Token;
+use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Instant;
 use structopt::StructOpt;
@@ -10,9 +11,20 @@ macro_rules! benchmark {
         let start = Instant::now();
         let x = $code;
         let duration = start.elapsed();
-        println!("{:<24}{:}μs", $name, format!("{:?}", duration.as_micros()));
+
+        PERF_METRICS.with(|m| {
+            m.borrow_mut().push(format!(
+                "{:<24}{:}μs",
+                $name,
+                format!("{:?}", duration.as_micros())
+            ))
+        });
         x
     };
+}
+
+thread_local! {
+    static PERF_METRICS: RefCell<Vec<String>> = RefCell::new(vec![]);
 }
 
 #[derive(Debug, Default, StructOpt)]
@@ -32,18 +44,28 @@ pub struct PassArgs {
 
 pub fn compile(buf: &str, args: PassArgs) {
     let tokens = lexical_pass(buf, &args);
+    if args.debug {
+        println!("::Lexical Analysis::\n{:#?}\n", tokens);
+    }
+
     let mut ast = ast_pass(tokens, &args);
+    if args.debug {
+        println!("::AST Creation::\n{:#?}\n", ast);
+    }
+
     typcheck_pass(&mut ast, &args);
+    if args.debug {
+        println!("::Type Checking::\n{:#?}\n", ast);
+    }
+
+    if args.perf {
+        PERF_METRICS.with(|m| println!("{:#?}", m.borrow()));
+    }
 }
 
 fn lexical_pass(buf: &str, args: &PassArgs) -> Vec<Token> {
     let code = || match pineapple_lexer::lex(buf) {
-        Ok(tokens) => {
-            if args.debug {
-                println!("::Lexical Analysis::\n{:#?}\n", tokens);
-            }
-            tokens
-        }
+        Ok(tokens) => tokens,
         Err(e) => panic!(format!("{}", e)),
     };
 
@@ -59,12 +81,7 @@ fn lexical_pass(buf: &str, args: &PassArgs) -> Vec<Token> {
 
 fn ast_pass(tokens: Vec<Token>, args: &PassArgs) -> Vec<Stmt> {
     let code = || match pineapple_ast::parse(tokens) {
-        Ok(ast) => {
-            if args.debug {
-                println!("::AST Creation::\n{:#?}\n", ast);
-            }
-            ast
-        }
+        Ok(ast) => ast,
         Err(e) => panic!(format!("{}", e)),
     };
 
@@ -80,12 +97,7 @@ fn ast_pass(tokens: Vec<Token>, args: &PassArgs) -> Vec<Stmt> {
 
 fn typcheck_pass(ast: &mut Vec<Stmt>, args: &PassArgs) {
     let mut code = || match pineapple_semantics::typecheck(ast) {
-        Ok(ast) => {
-            if args.debug {
-                println!("::Type Checking::\n{:#?}\n", ast);
-            }
-            ast
-        }
+        Ok(ast) => ast,
         Err(e) => panic!(format!("{}", e)),
     };
 

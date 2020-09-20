@@ -1,5 +1,5 @@
-use pineapple_ir::token::{Token, TokenKind};
 use pineapple_ir::value::Value;
+use pineapple_ir::hir::token::{TokenKind, Token};
 use pineapple_session::intern_string;
 use std::iter::Peekable;
 use std::str::Chars;
@@ -190,7 +190,7 @@ impl<'a> Lexer<'a> {
             "bool" => TokenKind::BoolTy,
 
             "string" => TokenKind::StringTy,
-            _ => TokenKind::Identifier(intern_string(name.clone())),
+            _ => TokenKind::Ident(intern_string(name.clone())),
         };
 
         Ok(key)
