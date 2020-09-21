@@ -1,8 +1,10 @@
-use pineapple_ast::ast::Stmt;
-use pineapple_ir::hir::token::Token;
+use pineapple_codegen_ssa::analysis::cfg::CFG;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Instant;
+
+use pineapple_ast::ast::Stmt;
+use pineapple_ir::hir::token::Token;
 use structopt::StructOpt;
 
 #[macro_export]
@@ -58,10 +60,12 @@ pub fn compile(buf: &str, args: PassArgs) {
         println!("::Type Checking::\n{:#?}\n", ast);
     }
 
-    let mut code_blocks = linearcode_pass(ast, &args);
+    let mut linear_code = linear_code_pass(ast, &args);
     if args.debug {
-        println!("::AST to LinearCode::\n{:#?}\n", code_blocks);
+        println!("::AST to LinearCode::\n{:#?}\n", linear_code);
     }
+
+    codegen_ssa_pass(linear_code, &args);
 
     if args.perf {
         PERF_METRICS.with(|m| println!("{:#?}", m.borrow()));
@@ -116,12 +120,8 @@ fn typcheck_pass(ast: &mut Vec<Stmt>, args: &PassArgs) {
     }
 }
 
-fn linearcode_pass(ast: Vec<Stmt>, args: &PassArgs) -> Vec<Vec<pineapple_ir::mir::Stmt>> {
-    // pineapple_translation::convert_ast_to_linearcode(ast);
-
-    let code = || {
-        pineapple_translation::convert_ast_to_linearcode(ast)
-    };
+fn linear_code_pass(ast: Vec<Stmt>, args: &PassArgs) -> Vec<Vec<pineapple_ir::mir::Stmt>> {
+    let code = || pineapple_translation::convert_ast_to_linear_code(ast);
 
     if args.perf {
         benchmark! {
@@ -130,5 +130,15 @@ fn linearcode_pass(ast: Vec<Stmt>, args: &PassArgs) -> Vec<Vec<pineapple_ir::mir
         }
     } else {
         code()
+    }
+}
+
+fn codegen_ssa_pass(linear_code: Vec<Vec<pineapple_ir::mir::Stmt>>, args: &PassArgs) {
+    for compilable_block in linear_code {
+        let mut cfg = CFG::from(compilable_block);
+
+        if args.debug {
+            println!("{:#?}", cfg);
+        }
     }
 }

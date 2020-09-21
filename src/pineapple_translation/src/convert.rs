@@ -1,11 +1,11 @@
-use pineapple_ir::mir::Label;
-use pineapple_ir::op::BinOp;
-use pineapple_ir::value::ValueTy;
-use pineapple_session::intern_string;
 use std::collections::{hash_map::Entry, HashMap};
 
 use pineapple_ast::ast;
 use pineapple_ir::{mir::Expr, mir::Oper, mir::Stmt, op::RelOp};
+use pineapple_ir::mir::Label;
+use pineapple_ir::op::BinOp;
+use pineapple_ir::value::ValueTy;
+use pineapple_session::intern_string;
 
 type Block = Vec<Stmt>;
 type Identifier = usize;
@@ -13,16 +13,16 @@ type Type = ValueTy;
 
 type Arg = (Identifier, Type);
 
-pub struct LinearCodeTransformer {
+pub struct LinearCodeTranslator {
     statements: Vec<Block>,
     reg_count: usize,
     label_count: usize,
     backpatch: Vec<usize>,
 }
 
-impl LinearCodeTransformer {
+impl LinearCodeTranslator {
     pub fn new() -> Self {
-        LinearCodeTransformer {
+        LinearCodeTranslator {
             statements: vec![],
             reg_count: 0,
             label_count: 0,
@@ -122,8 +122,7 @@ impl LinearCodeTransformer {
 
                 self.translate_statement(body, &mut block);
 
-                if let Stmt::Return(_) = block.last().unwrap() {
-                } else {
+                if let Stmt::Return(_) = block.last().unwrap() {} else {
                     block.push(Stmt::Return(None));
                 }
 
@@ -188,8 +187,7 @@ impl LinearCodeTransformer {
 
         self.translate_statement(body, &mut block_inner);
 
-        if let Stmt::Return(_) = block_inner.last().unwrap() {
-        } else {
+        if let Stmt::Return(_) = block_inner.last().unwrap() {} else {
             block_inner.push(Stmt::Return(None));
         }
 

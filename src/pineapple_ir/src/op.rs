@@ -1,5 +1,6 @@
-use crate::hir::token::{Token, TokenKind};
 use std::fmt;
+
+use crate::hir::token::{Token, TokenKind};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum BinOp {

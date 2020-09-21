@@ -1,7 +1,8 @@
-use crate::ast::Stmt;
-use crate::parser::Parser;
 use pineapple_error::ParseError;
 use pineapple_ir::hir::token::Token;
+
+use crate::ast::Stmt;
+use crate::parser::Parser;
 
 pub mod ast;
 mod parser;

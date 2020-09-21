@@ -1,7 +1,7 @@
-use pineapple_ir::value::{Value, ValueTy};
 use std::fmt;
 
 use pineapple_ir::hir::token::{Token, TokenKind};
+use pineapple_ir::value::{Value, ValueTy};
 
 type Ident = usize;
 type Type = ValueTy;
@@ -53,7 +53,7 @@ impl fmt::Display for ParseError {
                 let line = token.line;
                 let col = token.col;
                 write!(f, "At {}:{}. Attempted to cast {:?} to {:?}, but cast failed", line, col, token, target_type)
-            },
+            }
             ParseError::UnexpectedToken(found, expected) => {
                 let line = found.line;
                 let col = found.col;

@@ -1,9 +1,8 @@
-pub mod cfg;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::op::{BinOp, RelOp};
 use crate::value::Value;
 use crate::value::ValueTy;
-use std::{cell::RefCell, rc::Rc};
 
 type BlockIndex = usize;
 type Interned = usize;
@@ -51,7 +50,7 @@ impl std::fmt::Debug for Stmt {
             Stmt::Tac(lval, rval) => write!(f, "{:?} = {:?}", lval, rval),
             Stmt::Label(label) => match label {
                 Label::Marker(label) => write!(f, "_L{}:", label),
-                Label::Named(label)  => write!(f, "_{}:", label),
+                Label::Named(label) => write!(f, "_{}:", label),
             },
             Stmt::CastAs(oper, t) => write!(f, "cast {:?} as {:?}", oper, t),
             Stmt::Jump(label) => write!(f, "goto _L{:?}", label),
@@ -70,7 +69,6 @@ impl std::fmt::Debug for Stmt {
         }
     }
 }
-
 
 #[derive(Clone, PartialEq)]
 pub enum Expr {
@@ -121,7 +119,6 @@ impl std::fmt::Debug for Expr {
         }
     }
 }
-
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Oper {

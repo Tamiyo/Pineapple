@@ -1,10 +1,10 @@
-use pineapple_ir::value::Value;
-use pineapple_ir::hir::token::{TokenKind, Token};
-use pineapple_session::intern_string;
 use std::iter::Peekable;
 use std::str::Chars;
 
 use pineapple_error::ScanError;
+use pineapple_ir::hir::token::{Token, TokenKind};
+use pineapple_ir::value::Value;
+use pineapple_session::intern_string;
 
 pub struct Lexer<'a> {
     it: Peekable<Chars<'a>>,
@@ -23,8 +23,8 @@ impl<'a> Lexer<'a> {
     }
 
     fn consume_while<F>(&mut self, x: F) -> Result<Vec<char>, ScanError>
-    where
-        F: Fn(char) -> bool,
+        where
+            F: Fn(char) -> bool,
     {
         let mut chars: Vec<char> = Vec::new();
         while let Some(&ch) = self.it.peek() {

@@ -76,6 +76,7 @@ name = "pineapple"
 version = "0.1.0"
 dependencies = [
  "pineapple_ast",
+ "pineapple_codegen_ssa",
  "pineapple_data_structures",
  "pineapple_error",
  "pineapple_ir",
@@ -95,6 +96,14 @@ dependencies = [
  "pineapple_ir",
  "pineapple_lexer",
  "pineapple_session",
+]
+
+[[package]]
+name = "pineapple_codegen_ssa"
+version = "0.1.0"
+dependencies = [
+ "pineapple_data_structures",
+ "pineapple_ir",
 ]
 
 [[package]]
@@ -127,6 +136,7 @@ name = "pineapple_passes"
 version = "0.1.0"
 dependencies = [
  "pineapple_ast",
+ "pineapple_codegen_ssa",
  "pineapple_ir",
  "pineapple_lexer",
  "pineapple_semantics",

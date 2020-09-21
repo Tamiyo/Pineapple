@@ -1,9 +1,10 @@
+use pineapple_error::ParseError;
+use pineapple_ir::{hir::token::{Token, TokenKind}, value::ValueTy};
 use pineapple_ir::op::BinOp;
 use pineapple_ir::op::RelOp;
 use pineapple_ir::value::Value;
-use pineapple_ir::{hir::token::{Token, TokenKind}, value::ValueTy};
+
 use crate::ast::{Expr, Stmt};
-use pineapple_error::ParseError;
 
 type Ident = usize;
 

@@ -1,0 +1,14 @@
+// This is a comment lul
+// Thinking about immutable data types as default...
+#fibo_int32(n: int32): int32 {
+    if (n <= 1) {
+        return n;
+    } else {
+        return fibo_int32(n - 1) + fibo_int32(n - 2);
+    }
+}
+
+#main() {
+    x: int32 = fibo_int32(9);
+    print(x);
+}

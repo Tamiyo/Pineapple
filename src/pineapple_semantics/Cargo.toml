@@ -7,7 +7,7 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pineapple_ast = {path = "../pineapple_ast"}
-pineapple_ir = {path = "../pineapple_ir"}
-pineapple_error = {path = "../pineapple_error"}
-pineapple_session = {path = "../pineapple_session"}
+pineapple_ast = { path = "../pineapple_ast" }
+pineapple_ir = { path = "../pineapple_ir" }
+pineapple_error = { path = "../pineapple_error" }
+pineapple_session = { path = "../pineapple_session" }
