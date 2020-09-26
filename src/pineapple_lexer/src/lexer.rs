@@ -3,7 +3,7 @@ use std::str::Chars;
 
 use pineapple_error::ScanError;
 use pineapple_ir::hir::token::{Token, TokenKind};
-use pineapple_ir::value::Value;
+use pineapple_ir::Value;
 use pineapple_session::intern_string;
 
 pub struct Lexer<'a> {

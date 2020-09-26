@@ -1,5 +1,5 @@
 use pineapple_ir::op::{BinOp, RelOp};
-use pineapple_ir::value::{Value, ValueTy};
+use pineapple_ir::{Value, ValueTy};
 
 type Identifier = usize;
 type Type = ValueTy;

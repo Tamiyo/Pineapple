@@ -1,8 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::op::{BinOp, RelOp};
-use crate::value::Value;
-use crate::value::ValueTy;
+use crate::Value;
+use crate::ValueTy;
 
 type BlockIndex = usize;
 type Interned = usize;
@@ -10,7 +8,7 @@ type Arity = usize;
 type Sym = usize;
 type Version = usize;
 
-type Statement = Rc<RefCell<Stmt>>;
+type StatementIndex = usize;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Label {
@@ -40,8 +38,81 @@ pub enum Stmt {
     Return(Option<Oper>),
 
     //  Special pseudo-instruction for SSA destruction
-    //  See SSA-Book p. 36
-    ParallelCopy(Vec<Statement>),
+    //  See SSA-Book p. 36z
+    ParallelCopy(Vec<StatementIndex>),
+}
+
+impl Stmt {
+    pub fn oper_defined(&self) -> Vec<Oper> {
+        match self {
+            Stmt::Tac(lval, _) => match lval {
+                Oper::SSA(_) => vec![*lval],
+                _ => vec![],
+            },
+            _ => vec![],
+        }
+    }
+
+    pub fn oper_used(&self) -> Vec<Oper> {
+        match self {
+            Stmt::Tac(_, rval) => rval.oper_used(),
+            Stmt::CJump(cond, _) => cond.oper_used(),
+            Stmt::StackPush(oper) => match oper {
+                Oper::SSA(_) => vec![*oper],
+                _ => vec![],
+            },
+            Stmt::CastAs(oper, _) => vec![*oper],
+            Stmt::Return(oper) => match *oper {
+                Some(Oper::SSA(_)) => vec![oper.unwrap()],
+                _ => vec![],
+            },
+            _ => vec![],
+        }
+    }
+
+    pub fn replace_all_oper_def_with(&mut self, a: &Oper, b: &Oper) {
+        match self {
+            Stmt::Tac(lval, _) => lval.replace_oper_with(a, b),
+            _ => (),
+        }
+    }
+
+    pub fn replace_all_oper_use_with(&mut self, a: &Oper, b: &Oper) {
+        match self {
+            Stmt::Tac(_, rval) => rval.replace_oper_with(a, b),
+            Stmt::CJump(cond, _) => cond.replace_oper_with(a, b),
+            Stmt::StackPush(oper) => oper.replace_oper_with(a, b),
+            Stmt::CastAs(oper, _) => oper.replace_oper_with(a, b),
+            Stmt::Return(oper) => {
+                if let Some(oper) = oper {
+                    oper.replace_oper_with(a, b)
+                }
+            }
+            _ => (),
+        }
+    }
+
+    pub fn replace_oper_def_with_ssa(&mut self, value: Oper, ssa: usize) {
+        match self {
+            Stmt::Tac(lval, _) => lval.replace_with_ssa(value, ssa),
+            _ => (),
+        }
+    }
+
+    pub fn replace_oper_use_with_ssa(&mut self, value: Oper, ssa: usize) {
+        match self {
+            Stmt::Tac(_, rval) => rval.replace_with_ssa(value, ssa),
+            Stmt::CJump(cond, _) => cond.replace_with_ssa(value, ssa),
+            Stmt::StackPush(oper) => oper.replace_with_ssa(value, ssa),
+            Stmt::CastAs(oper, _) => oper.replace_with_ssa(value, ssa),
+            Stmt::Return(oper) => {
+                if let Some(oper) = oper {
+                    oper.replace_with_ssa(value, ssa)
+                }
+            }
+            _ => (),
+        }
+    }
 }
 
 impl std::fmt::Debug for Stmt {
@@ -57,7 +128,7 @@ impl std::fmt::Debug for Stmt {
             Stmt::CJump(cond, label) => write!(f, "if {:?} goto _L{:?}", cond, label),
             Stmt::ParallelCopy(copies) => {
                 for copy in copies {
-                    write!(f, "(p) {:?}", *copy.borrow())?;
+                    write!(f, "(p) {:?}", copy)?;
                 }
                 Ok(())
             }
@@ -78,6 +149,86 @@ pub enum Expr {
     Phi(Vec<(Oper, BlockIndex)>),
 }
 
+impl Expr {
+    pub fn oper_used(&self) -> Vec<Oper> {
+        match self {
+            Expr::Oper(o) => match *o {
+                Oper::SSA(_) => vec![*o],
+                _ => vec![],
+            },
+            Expr::Binary(l, _, r) => [
+                match *l {
+                    Oper::SSA(_) => vec![*l],
+                    _ => vec![],
+                },
+                match *r {
+                    Oper::SSA(_) => vec![*r],
+                    _ => vec![],
+                },
+            ]
+            .concat(),
+            Expr::Logical(l, _, r) => [
+                match *l {
+                    Oper::SSA(_) => vec![*l],
+                    _ => vec![],
+                },
+                match *r {
+                    Oper::SSA(_) => vec![*r],
+                    _ => vec![],
+                },
+            ]
+            .concat(),
+            Expr::Phi(args) => {
+                let mut used: Vec<Oper> = vec![];
+                for arg in args {
+                    if let Oper::SSA(SSA::Var(_, _)) = arg.0 {
+                        used.push(arg.0);
+                    }
+                }
+                used
+            }
+            _ => vec![],
+        }
+    }
+
+    pub fn replace_oper_with(&mut self, a: &Oper, b: &Oper) {
+        match self {
+            Expr::Oper(o) => o.replace_oper_with(a, b),
+            Expr::Binary(l, _, r) => {
+                l.replace_oper_with(a, b);
+                r.replace_oper_with(a, b);
+            }
+            Expr::Logical(l, _, r) => {
+                l.replace_oper_with(a, b);
+                r.replace_oper_with(a, b);
+            }
+            Expr::Phi(args) => {
+                for arg in args {
+                    if arg.0 == *a {
+                        arg.0 = *b;
+                    }
+                }
+            }
+            _ => (),
+        }
+    }
+
+    pub fn replace_with_ssa(&mut self, value: Oper, ssa: usize) {
+        match self {
+            Expr::Oper(o) => o.replace_with_ssa(value, ssa),
+            Expr::Binary(l, _, r) => {
+                l.replace_with_ssa(value, ssa);
+                r.replace_with_ssa(value, ssa);
+            }
+            Expr::Logical(l, _, r) => {
+                l.replace_with_ssa(value, ssa);
+                r.replace_with_ssa(value, ssa);
+            }
+            _ => (),
+        }
+    }
+}
+
 impl std::fmt::Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
@@ -89,18 +240,11 @@ impl std::fmt::Debug for Expr {
                 for (i, arg) in args.iter().enumerate() {
                     write!(f, "B{}: ", arg.1)?;
                     match arg.0 {
-                        Oper::Var(value, ssa) => {
+                        Oper::SSA(ssa) => {
                             if i != args.len() - 1 {
-                                write!(f, "{}.{}, ", value, ssa)?;
+                                write!(f, "{:?}, ", ssa)?;
                             } else {
-                                write!(f, "{}.{}", value, ssa)?;
-                            }
-                        }
-                        Oper::Temp(value, ssa) => {
-                            if i != args.len() - 1 {
-                                write!(f, "_t{}.{}, ", value, ssa)?;
-                            } else {
-                                write!(f, "_t{}.{}", value, ssa)?;
+                                write!(f, "{:?}", ssa)?;
                             }
                         }
                         Oper::Value(c) => {
@@ -120,10 +264,24 @@ impl std::fmt::Debug for Expr {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
-pub enum Oper {
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum SSA {
     Var(Sym, Version),
     Temp(Sym, Version),
+}
+
+impl std::fmt::Debug for SSA {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            SSA::Var(value, ssa) => write!(f, "_v{}.{}", value, ssa),
+            SSA::Temp(value, ssa) => write!(f, "_t{}.{}", value, ssa),
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Oper {
+    SSA(SSA),
     Value(Value),
 
     StackPop,
@@ -133,6 +291,31 @@ pub enum Oper {
     StackLocation(usize),
 }
 
+impl Oper {
+    pub fn replace_oper_with(&mut self, a: &Oper, b: &Oper) {
+        if self == a {
+            *self = *b;
+        } else {
+        }
+    }
+
+    pub fn replace_with_ssa(&mut self, value: Oper, ssa: usize) {
+        if let Oper::SSA(SSA::Var(v, s)) = self {
+            if let Oper::SSA(SSA::Var(a, _)) = value {
+                if *v == a {
+                    *s = ssa;
+                }
+            }
+        } else if let Oper::SSA(SSA::Temp(v, s)) = self {
+            if let Oper::SSA(SSA::Temp(a, _)) = value {
+                if *v == a {
+                    *s = ssa;
+                }
+            }
+        }
+    }
+}
+
 impl std::fmt::Debug for Oper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
@@ -140,8 +323,7 @@ impl std::fmt::Debug for Oper {
             Oper::StackLocation(offset) => write!(f, "sp[-{}]", offset),
             Oper::StackPop => write!(f, "_pop"),
             Oper::ReturnValue => write!(f, "$rv"),
-            Oper::Var(value, ssa) => write!(f, "{}.{}", value, ssa),
-            Oper::Temp(value, ssa) => write!(f, "_t{}.{}", value, ssa),
+            Oper::SSA(ssa) => write!(f, "{:?}", ssa),
             Oper::Value(c) => write!(f, "{:?}", c),
         }
     }

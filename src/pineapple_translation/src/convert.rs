@@ -1,10 +1,10 @@
 use std::collections::{hash_map::Entry, HashMap};
 
 use pineapple_ast::ast;
-use pineapple_ir::{mir::Expr, mir::Oper, mir::Stmt, op::RelOp};
 use pineapple_ir::mir::Label;
 use pineapple_ir::op::BinOp;
-use pineapple_ir::value::ValueTy;
+use pineapple_ir::ValueTy;
+use pineapple_ir::{mir::Expr, mir::Oper, mir::Stmt, mir::SSA, op::RelOp};
 use pineapple_session::intern_string;
 
 type Block = Vec<Stmt>;
@@ -33,7 +33,7 @@ impl LinearCodeTranslator {
     fn new_temporary(&mut self) -> Oper {
         let count = self.reg_count;
         self.reg_count += 1;
-        Oper::Temp(count, 0)
+        Oper::SSA(SSA::Temp(count, 0))
     }
 
     fn new_label(&mut self) -> Label {
@@ -117,12 +117,16 @@ impl LinearCodeTranslator {
             if let ast::Stmt::Function(function_sym, args, _, body) = stmt {
                 block.push(Stmt::Label(Label::Named(*function_sym)));
                 for arg in args.iter().rev() {
-                    block.push(Stmt::Tac(Oper::Var(arg.0, 0), Expr::Oper(Oper::StackPop)));
+                    block.push(Stmt::Tac(
+                        Oper::SSA(SSA::Var(arg.0, 0)),
+                        Expr::Oper(Oper::StackPop),
+                    ));
                 }
 
                 self.translate_statement(body, &mut block);
 
-                if let Stmt::Return(_) = block.last().unwrap() {} else {
+                if let Stmt::Return(_) = block.last().unwrap() {
+                } else {
                     block.push(Stmt::Return(None));
                 }
 
@@ -182,12 +186,16 @@ impl LinearCodeTranslator {
 
         block_inner.push(Stmt::Label(Label::Named(*function_sym)));
         for arg in args.iter().rev() {
-            block_inner.push(Stmt::Tac(Oper::Var(arg.0, 0), Expr::Oper(Oper::StackPop)));
+            block_inner.push(Stmt::Tac(
+                Oper::SSA(SSA::Var(arg.0, 0)),
+                Expr::Oper(Oper::StackPop),
+            ));
         }
 
         self.translate_statement(body, &mut block_inner);
 
-        if let Stmt::Return(_) = block_inner.last().unwrap() {} else {
+        if let Stmt::Return(_) = block_inner.last().unwrap() {
+        } else {
             block_inner.push(Stmt::Return(None));
         }
 
@@ -280,7 +288,7 @@ impl LinearCodeTranslator {
     fn translate_expression(&mut self, expr: &ast::Expr, is_cond: bool, block: &mut Block) -> Oper {
         match expr {
             ast::Expr::Value(value) => Oper::Value(value.clone()),
-            ast::Expr::Variable(n) => Oper::Var(*n, 0),
+            ast::Expr::Variable(n) => Oper::SSA(SSA::Var(*n, 0)),
             ast::Expr::Assign(n, _, l) => self.translate_assign(n, l, block),
             ast::Expr::Call(n, args) => self.translate_call(n, args, block),
             ast::Expr::Binary(l, o, r) => self.translate_binary(l, o, r, block),
@@ -299,7 +307,7 @@ impl LinearCodeTranslator {
     ) -> Oper {
         if let ast::Expr::Variable(n) = expr {
             let temp = self.new_temporary();
-            block.push(Stmt::Tac(temp, Expr::Oper(Oper::Var(*n, 0))));
+            block.push(Stmt::Tac(temp, Expr::Oper(Oper::SSA(SSA::Var(*n, 0)))));
 
             self.translate_expression(expr, is_cond, block);
             block.push(Stmt::CastAs(temp, *t));
@@ -345,7 +353,7 @@ impl LinearCodeTranslator {
 
         let raw_str = self.translate_expression(expr, false, block);
         match raw_str {
-            Oper::Var(sym, _) => {
+            Oper::SSA(SSA::Var(sym, _)) => {
                 block.push(Stmt::Call(sym, args.len()));
 
                 block.push(Stmt::StackPopAllReg);
@@ -359,7 +367,7 @@ impl LinearCodeTranslator {
     }
 
     fn translate_assign(&mut self, n: &usize, l: &ast::Expr, block: &mut Block) -> Oper {
-        let lval = Oper::Var(*n, 0);
+        let lval = Oper::SSA(SSA::Var(*n, 0));
 
         if let ast::Expr::Call(name, args) = l {
             let temp = self.translate_call(name, args, block);

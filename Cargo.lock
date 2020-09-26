@@ -21,6 +21,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "autocfg"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -42,6 +48,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00d63df3d41950fb462ed38308eea019113ad1508da725bbedcd0fa5a85ef5f7"
+
+[[package]]
 name = "heck"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -57,6 +69,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3deed196b6e7f9e44a2ae8d94225d80302d81208b1bb673fd21fe634645c85a9"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "indexmap"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55e2e4c765aa53a0424761bf9f41aa7a6ac1efa87238f59560640e27fca028f2"
+dependencies = [
+ "autocfg",
+ "hashbrown",
 ]
 
 [[package]]
@@ -76,6 +98,7 @@ name = "pineapple"
 version = "0.1.0"
 dependencies = [
  "pineapple_ast",
+ "pineapple_codegen_bytecode",
  "pineapple_codegen_ssa",
  "pineapple_data_structures",
  "pineapple_error",
@@ -86,6 +109,7 @@ dependencies = [
  "pineapple_session",
  "pineapple_tooling",
  "pineapple_translation",
+ "pineapple_vm",
 ]
 
 [[package]]
@@ -99,9 +123,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pineapple_codegen_bytecode"
+version = "0.1.0"
+dependencies = [
+ "pineapple_codegen_ssa",
+ "pineapple_ir",
+]
+
+[[package]]
 name = "pineapple_codegen_ssa"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
  "pineapple_data_structures",
  "pineapple_ir",
 ]
@@ -136,6 +169,7 @@ name = "pineapple_passes"
 version = "0.1.0"
 dependencies = [
  "pineapple_ast",
+ "pineapple_codegen_bytecode",
  "pineapple_codegen_ssa",
  "pineapple_ir",
  "pineapple_lexer",
@@ -177,6 +211,10 @@ dependencies = [
  "pineapple_ir",
  "pineapple_session",
 ]
+
+[[package]]
+name = "pineapple_vm"
+version = "0.1.0"
 
 [[package]]
 name = "proc-macro-error"

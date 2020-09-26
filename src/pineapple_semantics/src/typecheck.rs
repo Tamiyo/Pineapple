@@ -1,7 +1,6 @@
 use pineapple_ast::ast::{Expr, Stmt};
 use pineapple_error::TypeError;
-use pineapple_ir::value::Value;
-use pineapple_ir::value::ValueTy;
+use pineapple_ir::{Value, ValueTy};
 
 type Ident = usize;
 type Type = ValueTy;
@@ -154,7 +153,7 @@ fn check_expr(expr: &mut Expr, expected_ty: Option<Type>) -> Result<Option<Type>
         Expr::Value(value) => {
             if let Some(ty) = expected_ty {
                 // If the value is not of the expected type we then we error
-                let value_ty = value.get_ty();
+                let value_ty = value.fetch_ty();
 
                 if value_ty != ty {
                     match value.try_implicit_cast(ty) {
@@ -207,12 +206,12 @@ fn check_call(
 
 fn check_cast(expr: &mut Expr, ty: &mut ValueTy) -> Result<Option<Type>, TypeError> {
     if let Expr::Value(value) = expr {
-        match value.try_cast(*ty) {
+        match value.try_explicit_cast(*ty) {
             Ok(()) => Ok(Some(*ty)),
             Err(()) => Err(TypeError::InvalidValueType(
                 value.clone(),
                 *ty,
-                value.get_ty(),
+                value.fetch_ty(),
             )),
         }
     } else if let Expr::Variable(ident) = expr {
@@ -220,7 +219,7 @@ fn check_cast(expr: &mut Expr, ty: &mut ValueTy) -> Result<Option<Type>, TypeErr
             Some(ty) => ty,
             None => panic!("undefined variable"),
         };
-        if !Value::check_can_cast(var_ty, *ty) {
+        if !Value::can_explicit_cast(var_ty, *ty) {
             return Err(TypeError::InvalidVariableType(*ident, var_ty, *ty));
         } else {
             Ok(Some(*ty))

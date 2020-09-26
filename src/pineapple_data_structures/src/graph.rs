@@ -28,15 +28,7 @@ impl Graph {
             .edges
             .iter()
             .enumerate()
-            .filter(
-                |(node, edges)| {
-                    if edges.contains(&n) {
-                        true
-                    } else {
-                        false
-                    }
-                },
-            )
+            .filter(|(_, edges)| if edges.contains(&n) { true } else { false })
             .map(|(node, _)| node)
             .collect();
         predecessors

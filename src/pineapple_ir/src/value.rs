@@ -1,221 +1,48 @@
-// We want a u64 object that can store a raw ptr w/ a tag
-// We want a 48bit ptr to raw memory of some arbitrary type T
-// We want the ability to store a tag inside the payload
-// We want the ability to cast T to ANY other type U
+// Borrowing a modified tagged implementation from https://crates.io/crates/tagged-box
+use std::alloc::Layout;
+use std::mem::ManuallyDrop;
+use std::{marker::PhantomData, mem};
 
-use core::marker::PhantomData;
-use core::mem;
-use core::ptr;
-use std::alloc;
+type TypeSize = u16;
 
-const TY_MASK: u64 = u64::max_value() >> 16;
+const FREE_WIDTH: usize = 16;
+const POINTER_WIDTH: usize = 48;
 
-macro_rules! types {
-    (
-        $( #[$meta:meta] )*
-        $struct_vis:vis struct $struct:ident, $enum_vis:vis enum $enum:ident {
-            $( $variant:ident($ty:ty) = $tag:expr, )+
-        }
-    ) => {
-        $( #[$meta] )*
-        #[derive(Copy)]
-        #[repr(transparent)]
-        $struct_vis struct $struct {
-            pub value: ValueBox<$enum>,
-        }
+const MAX_TY_SIZE: u16 = u16::MAX;
+const MAX_PTR_SIZE: usize = usize::max_value() >> FREE_WIDTH;
 
-        impl $struct {
-            pub fn get_ty(&self) -> ValueTy {
-                ValueTy::from(self.value.fetch_ty())
-            }
+const TY_MASK: usize = usize::max_value() >> 16;
 
-            pub fn change_ty(&mut self, ty: ValueTy) {
-                self.value.change_ty(ty);
-            }
-        }
-
-        $( #[$meta] )*
-        #[derive(Copy)]
-        $enum_vis enum $enum {
-            $( $variant($ty) ),+
-        }
-
-        #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
-        #[repr(u16)]
-        $enum_vis enum ValueTy {
-            $($variant = $tag,)+
-            NONE = u16::MAX,
-        }
-
-        impl From<u16> for ValueTy {
-            fn from(tag_u16: u16) -> Self {
-                match tag_u16 {
-                    $(
-                        $tag => ValueTy::$variant,
-                    )+
-                    _ => panic!(format!("no type tag from '{:?}'", tag_u16))
-                }
-            }
-        }
-
-        trait ValueInner: Sized {
-            fn into_tagged_box(self) -> ValueBox<Self>;
-        }
-
-        impl ValueInner for $enum {
-            fn into_tagged_box(self) -> ValueBox<Self> {
-                #[allow(non_camel_case_types)]
-                enum __tagged_box_enum_counter {
-                    $( $variant ),+
-                }
-
-                match self {
-                    $(
-                        Self::$variant(value) => ValueBox::new(value, __tagged_box_enum_counter::$variant as _),
-                    )+
-                }
-            }
-        }
-
-        impl From<$enum> for $struct {
-            #[inline]
-            fn from(variant: $enum) -> Self {
-                Self {
-                    value: variant.into_tagged_box(),
-                }
-            }
-        }
-
-        $(
-            impl From<$ty> for $struct {
-                #[inline]
-                fn from(value: $ty) -> Self {
-                    Self {
-                        value: $enum::$variant(value).into_tagged_box(),
-                    }
-                }
-            }
-        )+
-    };
+pub trait ValueInner: Sized {
+    fn into_tagged_box(self) -> ValueBox<Self>;
+    fn from_tagged_box(tagged: ValueBox<Self>) -> Self;
 }
 
-types! {
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-    pub struct Value, pub enum ValueTyTy {
-        F64(f64) = 0,
-        F32(f32) = 1,
-        I8(i8) = 2,
-        I16(i16) = 3,
-        I32(i32) = 4,
-        I64(i64) = 5,
-        U8(u8) = 6,
-        U16(u16) = 7,
-        U32(u32) = 8,
-        U64(u64) = 9,
-        BOOL(bool) = 10,
-        STR(usize) = 11,
-    }
+pub trait ValueContainer {
+    type Inner;
+
+    fn into_inner(self) -> Self::Inner;
 }
 
-macro_rules! implicit_cast_rules {
-    ($($variant_from:ident : [$($variant_to:ident),*],)*) => {
-        impl Value {
-            pub fn try_implicit_cast(&mut self, cast_ty: ValueTy) -> Result<(), ()> {
-                let implicit_cast_map: Vec<Vec<ValueTy>> = vec![
-                    $(vec![$(ValueTy::$variant_to),*],)*
-                ];
-
-                let value_ty = self.value.fetch_ty();
-                if implicit_cast_map[value_ty as usize].contains(&cast_ty) {
-                    self.change_ty(cast_ty);
-                    Ok(())
-                } else {
-                    Err(())
-                }
-            }
-        }
-    };
-}
-
-macro_rules! cast_rules {
-    ($($variant_from:ident : [$($variant_to:ident),*],)*) => {
-        impl Value {
-            pub fn try_cast(&mut self, cast_ty: ValueTy) -> Result<(), ()> {
-                let implicit_cast_map: Vec<Vec<ValueTy>> = vec![
-                    $(vec![$(ValueTy::$variant_to),*],)*
-                ];
-
-                let value_ty = self.value.fetch_ty();
-                if implicit_cast_map[value_ty as usize].contains(&cast_ty) {
-                    self.change_ty(cast_ty);
-                    Ok(())
-                } else {
-                    Err(())
-                }
-            }
-
-            pub fn check_can_cast(cast_from: ValueTy, cast_to: ValueTy) -> bool {
-                let implicit_cast_map: Vec<Vec<ValueTy>> = vec![
-                    $(vec![$(ValueTy::$variant_to),*],)*
-                ];
-
-                if implicit_cast_map[(cast_from as u16) as usize].contains(&cast_to) {
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    };
-}
-
-// This is only for internal use when implicitly casting numerical constants
-implicit_cast_rules! {
-    F64: [F64, F32],
-    F32: [F64, F32],
-    I8: [I8, I16, I32, I64, U8, U16, U32, U64],
-    I16: [I8, I16, I32, I64, U8, U16, U32, U64],
-    I32: [I8, I16, I32, I64, U8, U16, U32, U64],
-    I64: [I8, I16, I32, I64, U8, U16, U32, U64],
-    U8: [I8, I16, I32, I64, U8, U16, U32, U64],
-    U16: [I8, I16, I32, I64, U8, U16, U32, U64],
-    U32: [I8, I16, I32, I64, U8, U16, U32, U64],
-    U64: [I8, I16, I32, I64, U8, U16, U32, U64],
-    BOOL: [],
-    STR: [],
-}
-
-cast_rules! {
-    F64: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    F32: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    I8: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    I16: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    I32: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    I64: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    U8: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    U16: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    U32: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    U64: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-    BOOL: [],
-    STR: [],
-}
-
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct ValueBox<T> {
-    tagged_ptr: u64,
-    _marker: PhantomData<T>,
+    pub boxed: ValuePointer,
+    _type: PhantomData<T>,
 }
 
 impl<T> ValueBox<T> {
-    #[inline]
-    pub fn new<U>(val: U, ty: u16) -> Self {
+    pub fn new<U>(val: U, ty_size: TypeSize) -> Self {
         let ptr = if mem::size_of::<U>() == 0 {
-            ptr::NonNull::dangling().as_ptr()
+            std::ptr::NonNull::dangling().as_ptr()
         } else {
-            let layout = alloc::Layout::new::<U>();
+            let layout = Layout::new::<U>();
 
+            // Safety: The allocation should be properly handled by alloc + layout,
+            // and writing should be properly aligned, as the pointer came from the
+            // global allocator
             unsafe {
-                let ptr = alloc::alloc(layout) as *mut U;
+                let ptr = std::alloc::alloc(layout) as *mut U;
                 assert!(ptr as usize != 0);
                 ptr.write(val);
 
@@ -223,42 +50,83 @@ impl<T> ValueBox<T> {
             }
         };
 
-        // This is possibly unsafe... looking into
-        let tagged_ptr = ptr as u64 | ((ty as u64) << 48);
         Self {
-            tagged_ptr,
-            _marker: PhantomData,
+            boxed: ValuePointer::new(ptr as usize, ty_size),
+            _type: PhantomData,
         }
     }
 
     #[inline]
-    pub fn as_ptr(self) -> *const T {
-        self.strip_ty() as *const T
+    pub unsafe fn as_ref<U>(&self) -> &U {
+        self.boxed.as_ref()
     }
 
     #[inline]
-    pub fn as_mut_ptr(self) -> *mut T {
-        self.strip_ty() as *mut T
+    pub const fn as_ptr<U>(&self) -> *const U {
+        self.boxed.as_ptr() as *const U
     }
 
     #[inline]
-    pub fn fetch_ty(&self) -> u16 {
-        (self.tagged_ptr >> 48) as u16
+    pub fn as_mut_ptr<U>(&mut self) -> *mut U {
+        self.boxed.as_mut_ptr() as *mut U
     }
 
     #[inline]
-    pub fn strip_ty(&self) -> u64 {
-        self.tagged_ptr & TY_MASK
+    pub const fn ty(&self) -> TypeSize {
+        self.boxed.ty()
     }
 
     #[inline]
-    pub fn change_ty(&mut self, ty: ValueTy) {
-        self.tagged_ptr = (self.tagged_ptr << 16) >> 16;
-        self.tagged_ptr = self.tagged_ptr as u64 | ((ty as u64) << 48)
+    #[must_use]
+    pub unsafe fn into_inner<U>(tagged: Self) -> U {
+        let mut tagged = ManuallyDrop::new(tagged);
+        tagged.as_mut_ptr::<U>().read()
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct ValuePointer {
+    tagged_ptr: usize,
+}
+
+impl ValuePointer {
+    pub fn new(ptr: usize, ty_size: TypeSize) -> Self {
+        assert!(ty_size <= MAX_TY_SIZE);
+        assert!(ptr <= MAX_PTR_SIZE);
+
+        let tagged_ptr = ptr | ((ty_size as usize) << POINTER_WIDTH);
+
+        Self { tagged_ptr }
     }
 
     #[inline]
-    pub fn fetch_value(&self) -> &T {
-        unsafe { &*(self.strip_ty() as *const T) }
+    pub unsafe fn as_ref<T>(&self) -> &T {
+        &*(Self::strip_ty(self.tagged_ptr) as *const T)
+    }
+
+    #[inline]
+    pub const fn as_ptr<T>(self) -> *const T {
+        Self::strip_ty(self.tagged_ptr) as *const T
+    }
+
+    #[inline]
+    pub fn as_mut_ptr<T>(self) -> *mut T {
+        Self::strip_ty(self.tagged_ptr) as *mut T
+    }
+
+    #[inline]
+    pub const fn ty(self) -> TypeSize {
+        Self::fetch_ty(self.tagged_ptr)
+    }
+
+    #[inline]
+    pub const fn fetch_ty(pointer: usize) -> TypeSize {
+        (pointer >> POINTER_WIDTH) as TypeSize
+    }
+
+    #[inline]
+    pub const fn strip_ty(pointer: usize) -> usize {
+        pointer & TY_MASK
     }
 }

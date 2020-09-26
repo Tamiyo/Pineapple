@@ -1,4 +1,4 @@
-use crate::value::Value;
+use crate::Value;
 
 type Identifier = usize;
 type InternIndex = usize;

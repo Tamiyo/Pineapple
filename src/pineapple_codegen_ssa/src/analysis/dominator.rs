@@ -22,6 +22,7 @@ impl DominatorContext {
     }
 }
 
+// To use with lengauer_tarjan
 #[derive(Default)]
 struct DominatorState {
     bucket: Vec<HashSet<usize>>,
@@ -35,17 +36,18 @@ struct DominatorState {
     best: Vec<Option<usize>>,
     n: usize,
 }
+
 // Implementation of lengauer_tarjan algo
 // Adapted from https://gist.github.com/yuzeh/a5e6602dfdb0db3c2130c10537db54d7 and Appel p.414
 // This is kinda dirty with Options, I wonder if there is a better way to do this?
-pub fn compute_dominator_context(cfg: &mut CFG) -> DominatorContext {
+pub fn compute_dominator_context(cfg: &mut CFG) {
     let mut ctx = DominatorContext::default();
 
     compute_dominators(cfg, &mut ctx);
     compute_immediate_dominators(cfg, &mut ctx);
     compute_dominance_frontier(cfg, &mut ctx);
 
-    ctx
+    cfg.dominator = ctx;
 }
 
 // Not sure how I feel about inlining the helper functions inside this one...
@@ -155,7 +157,10 @@ fn compute_dominators(cfg: &CFG, ctx: &mut DominatorContext) {
 
     // This is also pretty inefficient but we'll get it working first
     let mut children: Vec<Vec<usize>> = vec![vec![]; size];
-    for (node, parent) in state.parent.iter().enumerate() {
+
+    // We removed this so this shouldn't work, but it might?
+    // for (node, parent) in state.parent.iter().enumerate() {
+    for (node, parent) in state.idom.iter().enumerate() {
         if let Some(parent) = parent {
             children[*parent].push(node);
         }

@@ -60,12 +60,22 @@ pub fn compile(buf: &str, args: PassArgs) {
         println!("::Type Checking::\n{:#?}\n", ast);
     }
 
-    let mut linear_code = linear_code_pass(ast, &args);
+    let linear_code = linear_code_pass(ast, &args);
     if args.debug {
         println!("::AST to LinearCode::\n{:#?}\n", linear_code);
     }
 
-    codegen_ssa_pass(linear_code, &args);
+    let cfgs = codegen_ssa_pass(linear_code, &args);
+
+    let module = codegen_bytecode_pass(cfgs, &args);
+    if args.debug {
+        for chunk in module.chunks {
+            for instruction in chunk.instructions {
+                println!("{:?}", instruction);
+            }
+            println!("")
+        }
+    }
 
     if args.perf {
         PERF_METRICS.with(|m| println!("{:#?}", m.borrow()));
@@ -133,12 +143,38 @@ fn linear_code_pass(ast: Vec<Stmt>, args: &PassArgs) -> Vec<Vec<pineapple_ir::mi
     }
 }
 
-fn codegen_ssa_pass(linear_code: Vec<Vec<pineapple_ir::mir::Stmt>>, args: &PassArgs) {
+fn codegen_ssa_pass(linear_code: Vec<Vec<pineapple_ir::mir::Stmt>>, args: &PassArgs) -> Vec<CFG> {
+    let mut cfgs: Vec<CFG> = vec![];
+
     for compilable_block in linear_code {
         let mut cfg = CFG::from(compilable_block);
+
+        pineapple_codegen_ssa::convert_cfg_to_ssa_form(&mut cfg);
+        pineapple_codegen_ssa::destruct_cfg_from_ssa_form(&mut cfg);
+        pineapple_codegen_ssa::register_allocation(&mut cfg);
 
         if args.debug {
             println!("{:#?}", cfg);
         }
+
+        cfgs.push(cfg);
+    }
+
+    cfgs
+}
+
+fn codegen_bytecode_pass(
+    cfgs: Vec<CFG>,
+    args: &PassArgs,
+) -> pineapple_codegen_bytecode::module::Module {
+    let code = || pineapple_codegen_bytecode::compile_cfgs_to_bytecode(cfgs);
+
+    if args.perf {
+        benchmark! {
+            "CFGs to Bytecode",
+            code()
+        }
+    } else {
+        code()
     }
 }

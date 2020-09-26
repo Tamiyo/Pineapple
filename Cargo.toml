@@ -6,6 +6,7 @@ version = "0.1.0"
 
 [dependencies]
 pineapple_ast = { path = "src/pineapple_ast" }
+pineapple_codegen_bytecode = { path = "src/pineapple_codegen_bytecode" }
 pineapple_codegen_ssa = { path = "src/pineapple_codegen_ssa" }
 pineapple_data_structures = { path = "src/pineapple_data_structures" }
 pineapple_error = { path = "src/pineapple_error" }
@@ -16,3 +17,4 @@ pineapple_semantics = { path = "src/pineapple_semantics" }
 pineapple_session = { path = "src/pineapple_session" }
 pineapple_tooling = { path = "src/pineapple_tooling" }
 pineapple_translation = { path = "src/pineapple_translation" }
+pineapple_vm = { path = "src/pineapple_vm" }

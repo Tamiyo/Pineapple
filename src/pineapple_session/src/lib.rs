@@ -1,4 +1,4 @@
-use pineapple_ir::value::ValueTy;
+use pineapple_ir::ValueTy;
 
 mod string_interner;
 mod symbol_table;

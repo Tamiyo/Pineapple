@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use pineapple_ir::value::ValueTy;
+use pineapple_ir::ValueTy;
 
 type Ident = usize;
 

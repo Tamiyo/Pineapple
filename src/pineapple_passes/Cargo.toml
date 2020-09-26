@@ -6,6 +6,7 @@ version = "0.1.0"
 
 [dependencies]
 pineapple_ast = {path = "../pineapple_ast"}
+pineapple_codegen_bytecode = {path = "../pineapple_codegen_bytecode"}
 pineapple_codegen_ssa = {path = "../pineapple_codegen_ssa"}
 pineapple_ir = {path = "../pineapple_ir"}
 pineapple_lexer = {path = "../pineapple_lexer"}
