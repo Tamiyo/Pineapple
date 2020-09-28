@@ -292,7 +292,7 @@ impl LinearCodeTranslator {
             ast::Expr::Assign(n, _, l) => self.translate_assign(n, l, block),
             ast::Expr::Call(n, args) => self.translate_call(n, args, block),
             ast::Expr::Binary(l, o, r) => self.translate_binary(l, o, r, block),
-            ast::Expr::Logical(l, o, r) => self.translate_logical(l, o, r, block),
+            ast::Expr::Logical(l, o, r) => self.translate_logical(l, o, r, is_cond, block),
             ast::Expr::Grouping(e) => self.translate_expression(e, is_cond, block),
             ast::Expr::CastAs(e, t) => self.translate_cast(e, t, is_cond, block),
         }
@@ -335,7 +335,7 @@ impl LinearCodeTranslator {
             temp
         } else if let ast::Expr::Logical(left, op, right) = expr {
             let temp = self.new_temporary();
-            let res = self.translate_logical(left, op, right, block);
+            let res = self.translate_logical(left, op, right, is_cond, block);
             block.push(Stmt::Tac(temp, Expr::Oper(res)));
             block.push(Stmt::CastAs(temp, *t));
             temp
@@ -345,7 +345,7 @@ impl LinearCodeTranslator {
     }
 
     fn translate_call(&mut self, expr: &ast::Expr, args: &[ast::Expr], block: &mut Block) -> Oper {
-        block.push(Stmt::StackPushAllReg);
+        // block.push(Stmt::StackPushAllReg);
         for arg in args {
             let res = self.translate_expression(arg, false, block);
             block.push(Stmt::StackPush(res));
@@ -356,7 +356,7 @@ impl LinearCodeTranslator {
             Oper::SSA(SSA::Var(sym, _)) => {
                 block.push(Stmt::Call(sym, args.len()));
 
-                block.push(Stmt::StackPopAllReg);
+                // block.push(Stmt::StackPopAllReg);
 
                 let temp = self.new_temporary();
                 block.push(Stmt::Tac(temp, Expr::Oper(Oper::ReturnValue)));
@@ -407,14 +407,23 @@ impl LinearCodeTranslator {
         l: &ast::Expr,
         o: &RelOp,
         r: &ast::Expr,
+        is_condition: bool,
         block: &mut Block,
     ) -> Oper {
         let lval = self.new_temporary();
-        let rval = Expr::Logical(
-            self.translate_expression(l, false, block),
-            o.flip(),
-            self.translate_expression(r, false, block),
-        );
+        let rval = if is_condition {
+            Expr::Logical(
+                self.translate_expression(l, false, block),
+                o.flip(),
+                self.translate_expression(r, false, block),
+            )
+        } else {
+            Expr::Logical(
+                self.translate_expression(l, false, block),
+                *o,
+                self.translate_expression(r, false, block),
+            )
+        };
 
         let code = Stmt::Tac(lval, rval);
         block.push(code);

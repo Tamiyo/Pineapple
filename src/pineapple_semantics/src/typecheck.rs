@@ -1,5 +1,7 @@
 use pineapple_ast::ast::{Expr, Stmt};
 use pineapple_error::TypeError;
+use pineapple_ir::op::BinOp;
+use pineapple_ir::op::RelOp;
 use pineapple_ir::{Value, ValueTy};
 
 type Ident = usize;
@@ -68,7 +70,15 @@ fn check_stmt(stmt: &mut Stmt, func_return_ty: Option<Type>) -> Result<(), TypeE
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         },
-        Stmt::Print(_) => Ok(()),
+        Stmt::Print(expressions) => {
+            for expr in expressions {
+                match check_expr(expr, None) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e),
+                }?;
+            }
+            Ok(())
+        },
         Stmt::Return(expr) => {
             if let Some(expr) = expr {
                 let rtype = check_expr(expr, func_return_ty)?;
@@ -130,7 +140,8 @@ fn check_expr(expr: &mut Expr, expected_ty: Option<Type>) -> Result<Option<Type>
         }
         Expr::Logical(left, _, right) => {
             let ty = check_expr(left, expected_ty)?;
-            check_expr(right, ty)
+            check_expr(right, ty)?;
+            Ok(Some(ValueTy::BOOL))
         }
         Expr::Grouping(group) => check_expr(group, expected_ty),
         Expr::Variable(ident) => {
@@ -143,9 +154,9 @@ fn check_expr(expr: &mut Expr, expected_ty: Option<Type>) -> Result<Option<Type>
                         Err(TypeError::InvalidVariableType(*ident, expected_ty, ty))
                     }
                 }
-                (Some(_), None) => {
+                (Some(ty), None) => {
                     // If we have a variable w/ no type annotation, we pass as it exists
-                    Ok(None)
+                    Ok(Some(ty))
                 }
                 _ => Err(TypeError::UndefinedVariable(*ident)),
             }

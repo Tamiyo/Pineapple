@@ -168,6 +168,10 @@ fn rename(
     }
 }
 
+/* TODO
+    Why would the index be greater than the len if we're explicity adding to the end of this?
+        This has to be something wrong with the parallel copy code...
+*/
 fn convert_to_conventional_ssa(cfg: &mut CFG) {
     for bb in &mut cfg.blocks {
         let statement = Stmt::ParallelCopy(vec![]);
@@ -179,7 +183,8 @@ fn convert_to_conventional_ssa(cfg: &mut CFG) {
         cfg.statements.push(RefCell::new(statement));
     }
 
-    let mut new_statements = cfg.statements.clone();
+    let mut to_push: Vec<RefCell<Stmt>> = vec![];
+    let mut to_push_counter = cfg.statements.len();
     for b0_ind in 0..cfg.blocks.len() {
         let b0 = &cfg.blocks[b0_ind];
         for s in b0.statements.iter() {
@@ -196,13 +201,15 @@ fn convert_to_conventional_ssa(cfg: &mut CFG) {
                     match &mut *cfg.statements[*pci].borrow_mut() {
                         Stmt::ParallelCopy(pcopy) => {
                             let statement = RefCell::new(Stmt::Tac(ai_prime, Expr::Oper(*ai)));
-                            pcopy.push(new_statements.len());
-                            new_statements.push(statement);
+                            pcopy.push(to_push_counter);
+                            to_push.push(statement);
+                            to_push_counter += 1;
                         }
                         _ => panic!(""),
                     }
                     *ai = ai_prime;
                 }
+
                 // begin
                 let pc0 = b0.statements.first().unwrap();
                 let a0_prime = match a0 {
@@ -214,35 +221,45 @@ fn convert_to_conventional_ssa(cfg: &mut CFG) {
                 match &mut *cfg.statements[*pc0].borrow_mut() {
                     Stmt::ParallelCopy(pcopy) => {
                         let statement = RefCell::new(Stmt::Tac(*a0, Expr::Oper(a0_prime)));
-                        pcopy.push(new_statements.len());
-                        new_statements.push(statement);
+                        pcopy.push(to_push_counter);
+                        to_push.push(statement);
+                        to_push_counter += 1;
                     }
                     _ => panic!("expected pc0 to be a parallel copy"),
                 }
                 *a0 = a0_prime;
-            }
+            };
         }
     }
-    cfg.statements = new_statements;
+    for stmt in to_push {
+        cfg.statements.push(stmt);
+    }
 }
 
 fn remove_phi_functions(cfg: &mut CFG) {
-    let mut new_statements = cfg.statements.clone();
     for b0_ind in 0..cfg.blocks.len() {
         let b0 = &cfg.blocks[b0_ind];
         let mut to_remove = vec![];
+
+        let mut to_push: Vec<RefCell<Stmt>> = vec![];
+        let mut to_push_counter = cfg.statements.len();
 
         for (index, s) in b0.statements.clone().iter().enumerate() {
             if let Stmt::Tac(a0, Expr::Phi(args)) = &mut *cfg.statements[*s].borrow_mut() {
                 for (ai, bi) in args {
                     let stmt = RefCell::new(Stmt::Tac(*a0, Expr::Oper(*ai)));
-                    cfg.blocks[*bi].statements.push(new_statements.len());
-                    new_statements.push(stmt);
+                    cfg.blocks[*bi].statements.push(to_push_counter);
+                    to_push.push(stmt);
+                    to_push_counter += 1;
                 }
 
                 // remove_phi_func
                 to_remove.push(index);
             }
+        }
+
+        for stmt in to_push {
+            cfg.statements.push(stmt);
         }
 
         // Again I REALLY dont like using these giant iter.filter.map.collects but
@@ -256,16 +273,14 @@ fn remove_phi_functions(cfg: &mut CFG) {
             .map(|(_, v)| v.clone())
             .collect();
     }
-
-    cfg.statements = new_statements;
 }
 
 fn sequence_parallel_copies(cfg: &mut CFG) {
-    let new_statements = cfg.statements.clone();
+    let statements_snapshot = cfg.statements.clone();
     for bb in 0..cfg.blocks.len() {
         for s in 0..cfg.blocks[bb].statements.len() {
             if let Stmt::ParallelCopy(pcopy) =
-                &mut *new_statements[cfg.blocks[bb].statements[s]].borrow_mut()
+                &mut *statements_snapshot[cfg.blocks[bb].statements[s]].borrow_mut()
             {
                 sequence_parallel_copy(pcopy, cfg);
             }
@@ -276,7 +291,7 @@ fn sequence_parallel_copies(cfg: &mut CFG) {
 // Holy **** the code below is AWFUL, I HATE EVERY LINE OF IT.... BUT IT WORKS FOR NOW WILL FIX LATER
 fn sequence_parallel_copy(pcopy: &mut Vec<usize>, cfg: &mut CFG) {
     let mut seq: Vec<usize> = vec![];
-    let mut new_statements = cfg.statements.clone();
+    let mut statements_snapshot = cfg.statements.clone();
     loop {
         // Conditional checking
         let same = pcopy
@@ -324,8 +339,8 @@ fn sequence_parallel_copy(pcopy: &mut Vec<usize>, cfg: &mut CFG) {
                         _ => panic!(""),
                     };
                     let copy = RefCell::new(Stmt::Tac(aprime, Expr::Oper(*a)));
-                    seq.push(new_statements.len());
-                    new_statements.push(copy);
+                    seq.push(statements_snapshot.len());
+                    statements_snapshot.push(copy);
                     *a = aprime;
                     true
                 } else {
@@ -339,7 +354,7 @@ fn sequence_parallel_copy(pcopy: &mut Vec<usize>, cfg: &mut CFG) {
     if !seq.is_empty() {
         *pcopy = seq;
     }
-    cfg.statements = new_statements;
+    cfg.statements = statements_snapshot;
 }
 
 fn flatten_parallel_copies(cfg: &mut CFG) {

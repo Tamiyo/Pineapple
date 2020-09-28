@@ -1,3 +1,4 @@
+use pineapple_codegen_bytecode::module::Module;
 use pineapple_codegen_ssa::analysis::cfg::CFG;
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -16,9 +17,9 @@ macro_rules! benchmark {
 
         PERF_METRICS.with(|m| {
             m.borrow_mut().push(format!(
-                "{:<24}{:}μs",
+                "{:<24}{:}s",
                 $name,
-                format!("{:?}", duration.as_micros())
+                format!("{:?}", duration.as_secs_f64())
             ))
         });
         x
@@ -69,13 +70,15 @@ pub fn compile(buf: &str, args: PassArgs) {
 
     let module = codegen_bytecode_pass(cfgs, &args);
     if args.debug {
-        for chunk in module.chunks {
+        for chunk in module.clone().chunks {
             for instruction in chunk.instructions {
                 println!("{:?}", instruction);
             }
             println!("")
         }
     }
+
+    exec_virtual_machine(module, &args);
 
     if args.perf {
         PERF_METRICS.with(|m| println!("{:#?}", m.borrow()));
@@ -153,10 +156,6 @@ fn codegen_ssa_pass(linear_code: Vec<Vec<pineapple_ir::mir::Stmt>>, args: &PassA
         pineapple_codegen_ssa::destruct_cfg_from_ssa_form(&mut cfg);
         pineapple_codegen_ssa::register_allocation(&mut cfg);
 
-        if args.debug {
-            println!("{:#?}", cfg);
-        }
-
         cfgs.push(cfg);
     }
 
@@ -172,6 +171,19 @@ fn codegen_bytecode_pass(
     if args.perf {
         benchmark! {
             "CFGs to Bytecode",
+            code()
+        }
+    } else {
+        code()
+    }
+}
+
+fn exec_virtual_machine(module: Module, args: &PassArgs) {
+    let code = || pineapple_vm::execute_vm(module);
+
+    if args.perf {
+        benchmark! {
+            "VM Execution",
             code()
         }
     } else {

@@ -3,9 +3,7 @@ use pineapple_ir::mir::Label;
 use pineapple_ir::Value;
 use std::collections::HashMap;
 
-type InstructionIndex = usize;
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Chunk {
     pub label: Label,
     pub instructions: Vec<Instruction>,
@@ -26,20 +24,20 @@ impl Chunk {
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct LabelLocation {
-    chunk_index: usize,
-    statement_index: usize,
+    pub chunk_index: usize,
+    pub instruction_index: usize,
 }
 
 impl LabelLocation {
-    pub fn new(chunk_index: usize, statement_index: usize) -> Self {
+    pub fn new(chunk_index: usize, instruction_index: usize) -> Self {
         LabelLocation {
             chunk_index,
-            statement_index,
+            instruction_index,
         }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Module {
     pub chunks: Vec<Chunk>,
     pub values: Vec<Value>,
@@ -52,7 +50,7 @@ impl Module {
     }
 
     pub fn add_label(&mut self, label: &Label) {
-        let c = self.chunks.len();
+        let c = self.chunks.len() - 1;
         let s = self.chunks.last().unwrap().instructions.len();
 
         self.labels.insert(*label, LabelLocation::new(c, s));

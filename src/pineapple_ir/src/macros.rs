@@ -20,6 +20,14 @@ macro_rules! types {
 
         impl Eq for $struct {}
 
+        impl std::cmp::PartialOrd for $struct {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                let t1 = self.into_inner();
+                let t2 = other.into_inner();
+                t1.partial_cmp(&t2)
+            }
+        }
+
         impl std::hash::Hash for $struct {
             fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
                 self.value.boxed.hash(state);
@@ -74,6 +82,8 @@ macro_rules! types {
                 }
             }
         }
+
+        impl Eq for $enum {}
 
         $(
             impl From<$ty> for $struct {
@@ -148,6 +158,8 @@ macro_rules! types {
             $( $variant = $offset),+
         }
 
+        impl Eq for $enum2 {}
+
         impl From<u16> for $enum2 {
             fn from(other: u16) -> Self {
                 match other {
@@ -191,9 +203,9 @@ macro_rules! ops {
                 fn $op_lower(self, other: Self) -> Self {
                     match (self, other) {
                         $(
-                            ($enum::$variant(a), $enum::$variant(b)) => $enum::$variant(a + b),
+                            ($enum::$variant(a), $enum::$variant(b)) => $enum::$variant(a $op_sym b),
                         )*
-                        _ => panic!("")
+                        _ => panic!(format!("cannot {:?} {:?} and {:?}", stringify!($op) as &str, self, other))
                     }
                  }
             }

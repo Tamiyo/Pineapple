@@ -1,6 +1,0 @@
-#main() {
-    x: int32 = 40;
-    y: int32 = 70;
-    z: int32 = 10;
-    print(x + y + z); 
-}

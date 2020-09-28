@@ -1,16 +1,12 @@
 use crate::bytecode::IR;
-use crate::{
-    bytecode::Instruction,
-    bytecode::OR,
-    module::{LabelLocation, Module},
-};
+use crate::{bytecode::Instruction, bytecode::OR, module::Module};
 use pineapple_codegen_ssa::analysis::{basic_block::BlockEntry, basic_block::BlockExit, cfg::CFG};
 use pineapple_ir::mir::Label;
 use pineapple_ir::mir::Oper;
 use pineapple_ir::mir::Stmt;
 use pineapple_ir::op::RelOp;
-use pineapple_ir::Value;
 use pineapple_ir::{mir::Expr, op::BinOp};
+use pineapple_ir::{NoneTy, Value};
 
 #[derive(Default)]
 pub struct Compiler {
@@ -36,7 +32,7 @@ impl Compiler {
             Oper::StackLocation(s) => IR::STACK(*s),
             Oper::StackPop => IR::STACKPOP,
             Oper::ReturnValue => IR::RETVAL,
-            _ => unimplemented!(),
+            _ => unimplemented!("{:?} not implemented", operand),
         }
     }
 
@@ -85,8 +81,6 @@ impl Compiler {
                 self.module.add_instruction(Instruction::CAST(or, *ty));
             }
             Stmt::Call(sym, arity) => self.compile_call(sym, arity),
-            Stmt::StackPushAllReg => self.module.add_instruction(Instruction::PUSHA),
-            Stmt::StackPopAllReg => self.module.add_instruction(Instruction::POPA),
             Stmt::StackPush(oper) => {
                 let or = self.operand_to_ir(oper);
                 self.module.add_instruction(Instruction::PUSH(or))
@@ -130,7 +124,7 @@ impl Compiler {
             let retval = self.operand_to_ir(retval);
             self.module.add_instruction(Instruction::RETURN(retval));
         } else {
-            let retval = Value::from(None);
+            let retval = Value::from(NoneTy::None);
             let retval = self.operand_to_ir(&Oper::Value(retval));
             self.module.add_instruction(Instruction::RETURN(retval));
         }
@@ -174,7 +168,6 @@ impl Compiler {
             RelOp::LessEqual => self.module.add_instruction(Instruction::LTE(or, a, b)),
             RelOp::Greater => self.module.add_instruction(Instruction::GT(or, a, b)),
             RelOp::GreaterEqual => self.module.add_instruction(Instruction::GTE(or, a, b)),
-            _ => unimplemented!(),
         }
     }
 }

@@ -27,12 +27,6 @@ pub enum Stmt {
 
     Call(Interned, Arity),
 
-    //  Ideally we want to remove these in favor of smarter
-    //  function context pushing / popping, but we'll worry
-    //  about that later.
-    StackPushAllReg,
-    StackPopAllReg,
-
     StackPush(Oper),
 
     Return(Option<Oper>),
@@ -127,13 +121,12 @@ impl std::fmt::Debug for Stmt {
             Stmt::Jump(label) => write!(f, "goto _L{:?}", label),
             Stmt::CJump(cond, label) => write!(f, "if {:?} goto _L{:?}", cond, label),
             Stmt::ParallelCopy(copies) => {
+                write!(f, "(parallel) ")?;
                 for copy in copies {
                     write!(f, "(p) {:?}", copy)?;
                 }
                 Ok(())
             }
-            Stmt::StackPushAllReg => write!(f, "_push all"),
-            Stmt::StackPopAllReg => write!(f, "_pop all"),
             Stmt::StackPush(rval) => write!(f, "_push {:?}", rval),
             Stmt::Call(sym, arity) => write!(f, "call {}({})", sym, arity),
             Stmt::Return(oper) => write!(f, "ret {:?}", oper),
@@ -187,7 +180,6 @@ impl Expr {
                 }
                 used
             }
-            _ => vec![],
         }
     }
 
@@ -209,7 +201,6 @@ impl Expr {
                     }
                 }
             }
-            _ => (),
         }
     }
 
@@ -259,7 +250,6 @@ impl std::fmt::Debug for Expr {
                 }
                 write!(f, ")")
             }
-            _ => unimplemented!(),
         }
     }
 }

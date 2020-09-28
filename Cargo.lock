@@ -175,6 +175,7 @@ dependencies = [
  "pineapple_lexer",
  "pineapple_semantics",
  "pineapple_translation",
+ "pineapple_vm",
  "structopt",
 ]
 
@@ -215,6 +216,11 @@ dependencies = [
 [[package]]
 name = "pineapple_vm"
 version = "0.1.0"
+dependencies = [
+ "pineapple_codegen_bytecode",
+ "pineapple_ir",
+ "pineapple_session",
+]
 
 [[package]]
 name = "proc-macro-error"

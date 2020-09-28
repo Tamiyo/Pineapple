@@ -15,7 +15,6 @@ type Statement = RefCell<Stmt>;
 type StatementIndex = usize;
 type BlockIndex = usize;
 
-#[derive(Debug)]
 pub struct CFG {
     pub entry_label: Label,
     pub blocks: Vec<BasicBlock>,
@@ -29,9 +28,48 @@ pub struct CFG {
 }
 
 impl CFG {
+    pub fn active_statements(&self) -> Vec<usize> {
+        let mut statements: Vec<usize> = vec![];
+        for block in &self.blocks {
+            for s in &block.statements {
+                statements.push(*s);
+            }
+        }
+        statements
+    }
+
+    pub fn remove_statement(&mut self, statement_index: usize) {
+        for block in &mut self.blocks {
+            for i in 0..block.statements.len() {
+                if block.statements[i] == statement_index {
+                    block.statements.remove(i);
+                    break;
+                }
+            }
+        }
+    }
+
+    pub fn get_statements_using_oper(&mut self, oper: &Oper) -> Vec<usize> {
+        let mut statements: Vec<usize> = vec![];
+
+        for block in &self.blocks {
+            for s in &block.statements {
+                if self.statements[*s].borrow().oper_used().contains(oper) {
+                    statements.push(*s);
+                }
+            }
+
+            if let BlockExit::Exit(s) = &block.exit {
+                if self.statements[*s].borrow().oper_used().contains(oper) {
+                    statements.push(*s);
+                }
+            }
+        }
+
+        statements
+    }
+
     pub fn replace_all_operand_with(&mut self, orig: &Oper, new: &Oper) {
-        // This could be optimizated by looping over the ENTRY and EXIT of a block instead of going
-        // over ALL statements
         for stmt in &self.statements {
             stmt.borrow_mut().replace_all_oper_def_with(orig, new);
             stmt.borrow_mut().replace_all_oper_use_with(orig, new);
@@ -138,5 +176,29 @@ impl From<Vec<Stmt>> for CFG {
         };
         crate::analysis::dominator::compute_dominator_context(&mut cfg);
         cfg
+    }
+}
+
+impl std::fmt::Debug for CFG {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for block in &self.blocks {
+            match block.entry {
+                BlockEntry::Entry(s) => {
+                    write!(f, "{:?}\n", &*self.statements[s].borrow())?;
+                }
+                BlockEntry::None => {}
+            }
+            for s in &block.statements {
+                write!(f, "\t{:?}\n", &*self.statements[*s].borrow())?;
+            }
+            match block.exit {
+                BlockExit::Exit(s) => {
+                    write!(f, "\t{:?}\n", &*self.statements[s].borrow())?;
+                }
+                BlockExit::None => {}
+            }
+            println!();
+        }
+        Ok(())
     }
 }

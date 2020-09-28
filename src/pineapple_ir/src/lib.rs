@@ -6,14 +6,20 @@ pub mod value;
 
 use value::*;
 
+// Special NoneType to be used in macros
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NoneTy {
+    None,
+}
+
 types! {
     #[derive(Clone, Copy, PartialEq)]
     pub struct Value,
 
-    #[derive(Clone, Copy, PartialEq)]
+    #[derive(Clone, Copy, PartialEq, PartialOrd)]
     pub enum ValueWrapper,
 
-    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Clone, Copy, PartialEq, PartialOrd)]
     pub enum ValueTy {
         F64(f64) = 0,
         F32(f32) = 1,
@@ -27,7 +33,7 @@ types! {
         U64(u64) = 9,
         BOOL(bool) = 10,
         STR(usize) = 11,
-        NONE(Option<Value>) = 12,
+        NONE(NoneTy) = 12,
     }
 }
 
@@ -35,9 +41,9 @@ ops! {
     pub struct Value, pub enum ValueWrapper {
         Add, add, +: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
         Sub, sub, -: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-        Mul, mul, -: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-        Div, div, -: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
-        Rem, rem, -: [I8, I16, I32, I64, U8, U16, U32, U64],
+        Mul, mul, *: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
+        Div, div, /: [F64, F32, I8, I16, I32, I64, U8, U16, U32, U64],
+        Rem, rem, %: [I8, I16, I32, I64, U8, U16, U32, U64],
     }
 }
 

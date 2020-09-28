@@ -14,7 +14,7 @@ pub enum OR {
     STACK(StackOffset),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum IR {
     REG(RegisterIndex),
     VALUE(ValueIndex),
@@ -24,7 +24,7 @@ pub enum IR {
     RETVAL,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Instruction {
     LABEL(Label),
 
@@ -49,9 +49,6 @@ pub enum Instruction {
 
     PUSH(IR),
     POP(OR),
-
-    PUSHA,
-    POPA,
 
     JUMP(Label),
 

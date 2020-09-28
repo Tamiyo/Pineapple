@@ -24,7 +24,7 @@ pub trait ValueContainer {
     fn into_inner(self) -> Self::Inner;
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 #[repr(transparent)]
 pub struct ValueBox<T> {
     pub boxed: ValuePointer,

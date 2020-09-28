@@ -12,4 +12,5 @@ pineapple_ir = {path = "../pineapple_ir"}
 pineapple_lexer = {path = "../pineapple_lexer"}
 pineapple_semantics = {path = "../pineapple_semantics"}
 pineapple_translation = {path = "../pineapple_translation"}
+pineapple_vm = {path = "../pineapple_vm"}
 structopt = "0.3"

@@ -1,7 +1,10 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+use crate::vm::VM;
+use pineapple_codegen_bytecode::module::Module;
+
+mod callframe;
+mod vm;
+
+pub fn execute_vm(module: Module) {
+    let mut vm = VM::new(module);
+    vm.run_module();
 }
