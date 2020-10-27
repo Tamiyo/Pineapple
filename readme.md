@@ -35,6 +35,7 @@ Pineapple compiles to Pineapple Bytecode that resembles assembly architectures. 
 - There are still many things that I plan on adding to this project such as Arrays, Objects, Classes, HashMaps, Builtin Functions, Imports.
 
 ### Running the Project
+#### Currently reworking the vm, build not working
 I won't be including a release schedule anytime soon. If you want to run the project you'll have to have Rust installed on your machine to run the project.
 
 The CLI accepts multiple arguments described below.
