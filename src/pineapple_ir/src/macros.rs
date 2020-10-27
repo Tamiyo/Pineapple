@@ -99,9 +99,18 @@ macro_rules! types {
         )+
 
         $( #[$meta2] )*
-        #[derive(Debug)]
         $enum_vis enum $enum {
             $( $variant($ty) ),+
+        }
+
+        impl std::fmt::Debug for $enum {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                match self {
+                    $(
+                        $enum::$variant(a) => write!(f, "{:?}", a),
+                    )+
+                }
+             }
         }
 
         impl ValueInner for $enum {

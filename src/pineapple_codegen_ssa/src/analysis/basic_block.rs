@@ -1,26 +1,26 @@
-use pineapple_ir::mir::Expr;
-use pineapple_ir::mir::Label;
-use pineapple_ir::mir::Oper;
+use std::{cell::RefCell, rc::Rc};
 
-type StatementIndex = usize;
+use pineapple_ir::mir::Stmt;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+type Statement = Rc<RefCell<Stmt>>;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockEntry {
-    Entry(usize),
+    Entry(Statement),
     None,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockExit {
-    Exit(usize),
+    Exit(Statement),
     None,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BasicBlock {
     pub index: usize,
     pub entry: BlockEntry,
-    pub statements: Vec<StatementIndex>,
+    pub statements: Vec<Rc<RefCell<Stmt>>>,
     pub exit: BlockExit,
 }
 

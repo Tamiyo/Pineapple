@@ -8,4 +8,4 @@ def fib(n):
 
 start = time.process_time()
 print(fib(28))
-print("elapsed: " + str(time.process_time() - start))
+print("elapsed: " + str(time.process_time() - start) + "ms")

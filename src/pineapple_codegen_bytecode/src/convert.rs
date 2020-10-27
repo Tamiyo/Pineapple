@@ -48,23 +48,16 @@ impl Compiler {
     fn compile_cfg(&mut self, cfg: CFG) {
         for block in cfg.blocks {
             match block.entry {
-                BlockEntry::Entry(stmt_index) => {
-                    let stmt = &cfg.statements[stmt_index];
-                    self.compile_statement(&*stmt.borrow())
-                }
+                BlockEntry::Entry(statement) => self.compile_statement(&*statement.borrow()),
                 BlockEntry::None => (),
             }
 
-            for stmt_index in block.statements {
-                let stmt = &cfg.statements[stmt_index];
-                self.compile_statement(&*stmt.borrow())
+            for statement in block.statements {
+                self.compile_statement(&*statement.borrow())
             }
 
             match block.exit {
-                BlockExit::Exit(stmt_index) => {
-                    let stmt = &cfg.statements[stmt_index];
-                    self.compile_statement(&*stmt.borrow())
-                }
+                BlockExit::Exit(statement) => self.compile_statement(&*statement.borrow()),
                 BlockExit::None => (),
             }
         }
@@ -138,7 +131,7 @@ impl Compiler {
                 let rval = self.operand_to_ir(oper);
                 self.module.add_instruction(Instruction::MOV(or, rval));
             }
-            _ => unimplemented!(),
+            _ => unimplemented!("{:?}", expr),
         }
     }
 

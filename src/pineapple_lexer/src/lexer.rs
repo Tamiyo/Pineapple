@@ -172,20 +172,18 @@ impl<'a> Lexer<'a> {
             "while" => TokenKind::While,
 
             // Types
-            "int8" => TokenKind::I8Ty,
-            "int16" => TokenKind::I16Ty,
-            "int32" => TokenKind::I32Ty,
-            "int64" => TokenKind::I64Ty,
-            "int" => TokenKind::I32Ty,
+            "i8" => TokenKind::I8Ty,
+            "i16" => TokenKind::I16Ty,
+            "i32" => TokenKind::I32Ty,
+            "i64" => TokenKind::I64Ty,
 
-            "uint8" => TokenKind::U8Ty,
-            "uint16" => TokenKind::U16Ty,
-            "uint32" => TokenKind::U32Ty,
-            "uint64" => TokenKind::U64Ty,
-            "uint" => TokenKind::U32Ty,
+            "u8" => TokenKind::U8Ty,
+            "u16" => TokenKind::U16Ty,
+            "u32" => TokenKind::U32Ty,
+            "u64" => TokenKind::U64Ty,
 
-            "float32" => TokenKind::F32Ty,
-            "float64" => TokenKind::F64Ty,
+            "f32" => TokenKind::F32Ty,
+            "f64" => TokenKind::F64Ty,
 
             "bool" => TokenKind::BoolTy,
 

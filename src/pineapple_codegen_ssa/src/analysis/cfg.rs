@@ -1,8 +1,8 @@
 use pineapple_data_structures::graph::Graph;
 use pineapple_ir::mir::Stmt;
 use pineapple_ir::mir::{Label, Oper};
-use std::collections::HashMap;
 use std::{cell::RefCell, collections::HashSet};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::analysis::basic_block::BasicBlock;
 
@@ -11,14 +11,14 @@ use super::{
     dominator::DominatorContext,
 };
 
-type Statement = RefCell<Stmt>;
+type Statement = Rc<RefCell<Stmt>>;
 type StatementIndex = usize;
 type BlockIndex = usize;
 
+#[derive(Clone)]
 pub struct CFG {
     pub entry_label: Label,
     pub blocks: Vec<BasicBlock>,
-    pub statements: Vec<Statement>,
 
     pub defined: HashMap<Oper, HashSet<StatementIndex>>,
     pub used: HashMap<Oper, HashSet<StatementIndex>>,
@@ -28,20 +28,20 @@ pub struct CFG {
 }
 
 impl CFG {
-    pub fn active_statements(&self) -> Vec<usize> {
-        let mut statements: Vec<usize> = vec![];
+    pub fn active_statements(&self) -> Vec<Statement> {
+        let mut statements: Vec<Statement> = vec![];
         for block in &self.blocks {
             for s in &block.statements {
-                statements.push(*s);
+                statements.push(Rc::clone(s));
             }
         }
         statements
     }
 
-    pub fn remove_statement(&mut self, statement_index: usize) {
+    pub fn remove_statement(&mut self, statement: Statement) {
         for block in &mut self.blocks {
             for i in 0..block.statements.len() {
-                if block.statements[i] == statement_index {
+                if block.statements[i] == statement {
                     block.statements.remove(i);
                     break;
                 }
@@ -49,19 +49,19 @@ impl CFG {
         }
     }
 
-    pub fn get_statements_using_oper(&mut self, oper: &Oper) -> Vec<usize> {
-        let mut statements: Vec<usize> = vec![];
+    pub fn get_statements_using_oper(&mut self, oper: &Oper) -> Vec<Statement> {
+        let mut statements: Vec<Statement> = vec![];
 
         for block in &self.blocks {
-            for s in &block.statements {
-                if self.statements[*s].borrow().oper_used().contains(oper) {
-                    statements.push(*s);
+            for statement in &block.statements {
+                if statement.borrow().oper_used().contains(oper) {
+                    statements.push(Rc::clone(statement));
                 }
             }
 
-            if let BlockExit::Exit(s) = &block.exit {
-                if self.statements[*s].borrow().oper_used().contains(oper) {
-                    statements.push(*s);
+            if let BlockExit::Exit(statement) = &block.exit {
+                if statement.borrow().oper_used().contains(oper) {
+                    statements.push(Rc::clone(statement));
                 }
             }
         }
@@ -70,9 +70,15 @@ impl CFG {
     }
 
     pub fn replace_all_operand_with(&mut self, orig: &Oper, new: &Oper) {
-        for stmt in &self.statements {
-            stmt.borrow_mut().replace_all_oper_def_with(orig, new);
-            stmt.borrow_mut().replace_all_oper_use_with(orig, new);
+        for block in &self.blocks {
+            for stmt in &block.statements {
+                stmt.borrow_mut().replace_all_oper_def_with(orig, new);
+                stmt.borrow_mut().replace_all_oper_use_with(orig, new);
+            }
+
+            if let BlockExit::Exit(statement) = &block.exit {
+                statement.borrow_mut().replace_all_oper_use_with(orig, new);
+            }
         }
     }
 }
@@ -83,8 +89,6 @@ impl From<Vec<Stmt>> for CFG {
 
         let mut blocks: Vec<BasicBlock> = vec![];
         let mut block: BasicBlock = BasicBlock::new(0);
-
-        let mut statements: Vec<Statement> = vec![];
 
         let mut block_labels: HashMap<Label, usize> = HashMap::new();
         let mut graph = Graph::default();
@@ -101,26 +105,25 @@ impl From<Vec<Stmt>> for CFG {
                         entry_label = Some(label);
                     }
 
+                    let statement = Rc::new(RefCell::new(statement));
+
                     if block.entry == BlockEntry::None {
-                        block.entry = BlockEntry::Entry(statements.len());
+                        block.entry = BlockEntry::Entry(statement);
                     }
                     block_labels.insert(label, blocks.len());
-                    statements.push(RefCell::new(statement))
                 }
                 Stmt::Jump(_) => {
-                    block.exit = BlockExit::Exit(statements.len());
-                    statements.push(RefCell::new(statement));
+                    let statement = Rc::new(RefCell::new(statement));
+                    block.exit = BlockExit::Exit(statement);
 
                     blocks.push(block);
-
                     block = BasicBlock::new(blocks.len());
                 }
                 Stmt::CJump(_, _) => {
-                    block.exit = BlockExit::Exit(statements.len());
-                    statements.push(RefCell::new(statement));
+                    let statement = Rc::new(RefCell::new(statement));
+                    block.exit = BlockExit::Exit(statement);
 
                     blocks.push(block);
-
                     block = BasicBlock::new(blocks.len());
                 }
                 Stmt::Tac(lval, ref rval) => {
@@ -134,12 +137,12 @@ impl From<Vec<Stmt>> for CFG {
                             .or_insert_with(HashSet::new)
                             .insert(blocks.len());
                     }
-                    block.statements.push(statements.len());
-                    statements.push(RefCell::new(statement));
+                    let statement = Rc::new(RefCell::new(statement));
+                    block.statements.push(statement);
                 }
                 _ => {
-                    block.statements.push(statements.len());
-                    statements.push(RefCell::new(statement));
+                    let statement = Rc::new(RefCell::new(statement));
+                    block.statements.push(statement);
                 }
             }
         }
@@ -149,8 +152,8 @@ impl From<Vec<Stmt>> for CFG {
         }
 
         for block in &blocks {
-            if let BlockExit::Exit(exit) = block.exit {
-                match &*statements[exit].borrow() {
+            if let BlockExit::Exit(exit) = &block.exit {
+                match &*exit.borrow() {
                     Stmt::Jump(label) => {
                         let jumpto_block_index = *block_labels.get(&label).unwrap();
                         graph.add_directed_edge(block.index, jumpto_block_index);
@@ -168,7 +171,6 @@ impl From<Vec<Stmt>> for CFG {
         let mut cfg = CFG {
             entry_label: entry_label.unwrap(),
             blocks,
-            statements,
             graph,
             defined,
             used,
@@ -182,18 +184,18 @@ impl From<Vec<Stmt>> for CFG {
 impl std::fmt::Debug for CFG {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for block in &self.blocks {
-            match block.entry {
+            match &block.entry {
                 BlockEntry::Entry(s) => {
-                    write!(f, "{:?}\n", &*self.statements[s].borrow())?;
+                    write!(f, "{:?}\n", &*s.borrow())?;
                 }
                 BlockEntry::None => {}
             }
             for s in &block.statements {
-                write!(f, "\t{:?}\n", &*self.statements[*s].borrow())?;
+                write!(f, "\t{:?}\n", &*s.borrow())?;
             }
-            match block.exit {
+            match &block.exit {
                 BlockExit::Exit(s) => {
-                    write!(f, "\t{:?}\n", &*self.statements[s].borrow())?;
+                    write!(f, "\t{:?}\n", &*s.borrow())?;
                 }
                 BlockExit::None => {}
             }

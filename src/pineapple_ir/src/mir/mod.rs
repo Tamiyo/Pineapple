@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::op::{BinOp, RelOp};
 use crate::Value;
 use crate::ValueTy;
@@ -9,6 +11,7 @@ type Sym = usize;
 type Version = usize;
 
 type StatementIndex = usize;
+type Statement = Rc<RefCell<Stmt>>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Label {
@@ -33,7 +36,7 @@ pub enum Stmt {
 
     //  Special pseudo-instruction for SSA destruction
     //  See SSA-Book p. 36z
-    ParallelCopy(Vec<StatementIndex>),
+    ParallelCopy(Vec<Statement>),
 }
 
 impl Stmt {
@@ -97,6 +100,7 @@ impl Stmt {
         match self {
             Stmt::Tac(_, rval) => rval.replace_with_ssa(value, ssa),
             Stmt::CJump(cond, _) => cond.replace_with_ssa(value, ssa),
+            Stmt::ParallelCopy(copies) => panic!("This should be checked!"),
             Stmt::StackPush(oper) => oper.replace_with_ssa(value, ssa),
             Stmt::CastAs(oper, _) => oper.replace_with_ssa(value, ssa),
             Stmt::Return(oper) => {

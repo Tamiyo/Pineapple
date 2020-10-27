@@ -7,7 +7,7 @@ use std::fmt;
 // https://gist.github.com/yuzeh/a5e6602dfdb0db3c2130c10537db54d7
 // I don't like dealing with Options here, but idk if there is a proper way of
 // having a "null" value like this. Will look into but this is unimportant.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DominatorContext {
     pub dom: Vec<Option<usize>>,
     pub strict_dom: Vec<HashSet<usize>>,

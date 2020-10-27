@@ -29,7 +29,7 @@ fn compute_live_intervals(cfg: &CFG) -> Vec<Interval> {
 
     for bb in &cfg.blocks {
         for statement in &bb.statements {
-            let statement = &cfg.statements[*statement].borrow();
+            let statement = &*statement.borrow();
 
             for def in statement.oper_defined() {
                 match intervals.entry(def) {
@@ -137,7 +137,6 @@ fn linear_scan_register_allocation(cfg: &CFG) -> AllocState {
     }
 
     let mut intervals = compute_live_intervals(cfg);
-    // println!("intervals: {:#?}", intervals);
     intervals.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap());
 
     let mut state = AllocState::default();

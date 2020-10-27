@@ -7,6 +7,6 @@
 }
 
 #main() {
-    x: int32 = fibo_int32(6);
+    x: int32 = fibo_int32(28);
     print(x);
 }
